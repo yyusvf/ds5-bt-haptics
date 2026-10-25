@@ -56,44 +56,74 @@ internal sealed class BridgeService(Options opts) : IDisposable
     void Loop(CancellationToken ct)
     {
         var announced = false;
-        while (!ct.IsCancellationRequested)
+        Bridge? bridge = null;
+        try
         {
-            var dev = FindController();
-            if (dev == null)
+            while (!ct.IsCancellationRequested)
             {
-                if (!announced) AppLog.Write("Warte auf DualSense über Bluetooth (PS-Taste drücken) ...");
-                announced = true;
-                SetState(BridgeState.WaitingForController);
-                ct.WaitHandle.WaitOne(2000);
-                continue;
-            }
+                if (bridge?.ServerError is { } failed)
+                {
+                    // e.g. port 3240 taken by a second bridge
+                    LastError = failed.Message;
+                    AppLog.Write($"Bridge-Fehler: {failed}");
+                    DropBridge(ref bridge);
+                    ct.WaitHandle.WaitOne(5000);
+                    continue;
+                }
 
-            announced = false;
-            AppLog.Write($"Controller: {dev.Product} über Bluetooth");
-            var bridge = new Bridge(dev, opts);
-            bridge.Changed += () => Changed?.Invoke();
-            Current = bridge;
-            LastError = null;
-            SetState(BridgeState.Running);
-            try
-            {
-                bridge.Run(ct);
+                var dev = FindController();
+                if (dev == null)
+                {
+                    if (!announced) AppLog.Write("Warte auf DualSense über Bluetooth (PS-Taste drücken) ...");
+                    announced = true;
+                    SetState(BridgeState.WaitingForController);
+                    ct.WaitHandle.WaitOne(2000);
+                    continue;
+                }
+
+                announced = false;
+                AppLog.Write($"Controller: {dev.Product} über Bluetooth");
+                // A different model (DualSense vs. Edge) needs a different virtual pad.
+                if (bridge != null && bridge.Pid != dev.Pid) DropBridge(ref bridge);
+                if (bridge == null)
+                {
+                    bridge = new Bridge(opts);
+                    bridge.Changed += () => Changed?.Invoke();
+                    Current = bridge;
+                }
+                LastError = null;
+                SetState(BridgeState.Running);
+                try
+                {
+                    bridge.Connect(dev, ct);
+                }
+                catch (Exception e)
+                {
+                    LastError = e.Message;
+                    AppLog.Write($"Bridge-Fehler: {e}");
+                }
+                finally
+                {
+                    dev.Dispose();
+                }
+                if (ct.IsCancellationRequested) break;
+                SetState(BridgeState.WaitingForController);
+                ct.WaitHandle.WaitOne(LastError == null ? 1000 : 5000);
             }
-            catch (Exception e)
-            {
-                // e.g. port 3240 taken by a second bridge
-                LastError = e.Message;
-                AppLog.Write($"Bridge-Fehler: {e}");
-            }
-            finally
-            {
-                Current = null;
-                dev.Dispose();
-            }
-            if (ct.IsCancellationRequested) break;
-            SetState(BridgeState.WaitingForController);
-            ct.WaitHandle.WaitOne(LastError == null ? 1000 : 5000);
         }
+        finally
+        {
+            DropBridge(ref bridge);
+        }
+    }
+
+    void DropBridge(ref Bridge? bridge)
+    {
+        if (bridge == null) return;
+        Current = null;
+        bridge.Dispose();
+        bridge = null;
+        Changed?.Invoke();
     }
 
     /// <summary>

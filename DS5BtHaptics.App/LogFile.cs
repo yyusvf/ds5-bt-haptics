@@ -20,20 +20,49 @@ internal static class LogFile
         try
         {
             Directory.CreateDirectory(Folder);
-            if (File.Exists(FilePath))
-            {
-                File.Copy(FilePath, Path.Combine(Folder, "bridge.old.log"), overwrite: true);
-            }
-            writer = TextWriter.Synchronized(new StreamWriter(FilePath, append: false) { AutoFlush = true });
-            AppLog.Sink = message =>
-            {
-                try { writer.WriteLine($"{DateTime.Now:HH:mm:ss.fff} {message.TrimEnd()}"); }
-                catch (IOException) { }
-            };
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             AppLog.Sink = _ => { };
+            return;
+        }
+
+        try
+        {
+            if (File.Exists(FilePath))
+            {
+                File.Copy(FilePath, Path.Combine(Folder, "bridge.old.log"), overwrite: true);
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // Old log locked or gone: not worth losing this session's log over.
+        }
+
+        // A previous instance that is still shutting down may hold bridge.log; then log beside it.
+        writer = Open(FilePath) ?? Open(Path.Combine(Folder, $"bridge-{Environment.ProcessId}.log"));
+        if (writer is not { } log)
+        {
+            AppLog.Sink = _ => { };
+            return;
+        }
+        AppLog.Sink = message =>
+        {
+            try { log.WriteLine($"{DateTime.Now:HH:mm:ss.fff} {message.TrimEnd()}"); }
+            catch (IOException) { }
+        };
+    }
+
+    private static TextWriter? Open(string path)
+    {
+        try
+        {
+            var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
+            return TextWriter.Synchronized(new StreamWriter(stream) { AutoFlush = true });
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return null;
         }
     }
 }

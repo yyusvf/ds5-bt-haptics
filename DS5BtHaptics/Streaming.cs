@@ -31,6 +31,16 @@ internal static class Streamer
                 if (wait > TimeSpan.FromMilliseconds(1)) Timing.Sleep(wait.TotalMilliseconds - 0.5);
                 while (sw.Elapsed < next) Thread.SpinWait(50);
                 next += period;
+
+                // opts.Single may change while running (tray app setting): resize the packet.
+                if ((opts.Single ? 1 : 2) != framesPerPacket)
+                {
+                    framesPerPacket = opts.Single ? 1 : 2;
+                    samples = new float[framesPerPacket * Ds5BtProtocol.FrameBytes];
+                    pcm = new sbyte[samples.Length];
+                    period = TimeSpan.FromSeconds((double)framesPerPacket * Ds5BtProtocol.FrameSamples / Ds5BtProtocol.HapticSampleRate);
+                    AppLog.Write($"  Haptik: jetzt {framesPerPacket} Frame(s) alle {period.TotalMilliseconds:F2} ms");
+                }
                 if (sw.Elapsed - next > period * 4) { late++; next = sw.Elapsed; } // we fell behind; resync
 
                 var real = source.Read(samples);

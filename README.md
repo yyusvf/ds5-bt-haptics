@@ -65,7 +65,8 @@ Click the tray icon for the flyout:
   bridge on anyway until the game exits.
 
 The dot on the tray icon: green = ready, yellow = waiting for the controller, red = setup needed.
-The bridge reconnects on its own when the controller is switched off and on again.
+The bridge reconnects on its own when the controller is switched off and on again; the virtual
+controller stays plugged in meanwhile, so running games keep it.
 **Start games after the controller is connected.** If a game stays silent, disable Steam Input
 for it and restart the game.
 

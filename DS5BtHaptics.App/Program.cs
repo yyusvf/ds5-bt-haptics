@@ -73,6 +73,8 @@ internal static class Program
 
         AppLog.Write("Beendet");
         SingleInstance.Release();
+        // Don't let a stuck worker thread keep a tray-less process (and its log) alive.
+        Environment.Exit(0);
         return 0;
     }
 

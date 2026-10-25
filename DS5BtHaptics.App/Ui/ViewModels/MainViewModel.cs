@@ -135,7 +135,8 @@ internal sealed class MainViewModel : ViewModelBase
             settings.LowLatency = value;
             settings.Save();
             Raise();
-            app.RestartBridge();
+            // Applied live: a restart would unplug the virtual pad under a running game.
+            app.ApplyLowLatency(value);
         }
     }
 
@@ -284,6 +285,12 @@ internal sealed class MainViewModel : ViewModelBase
             ControllerDetail = service.LastError is { } error
                 ? "Fehler: " + error
                 : "PS-Taste drücken, um den DualSense per Bluetooth zu verbinden.";
+            ControllerOk = false;
+        }
+        else if (!bridge.Connected)
+        {
+            ControllerTitle = "Controller getrennt";
+            ControllerDetail = "PS-Taste drücken. Der virtuelle Controller bleibt so lange eingesteckt, laufende Spiele merken nichts.";
             ControllerOk = false;
         }
         else

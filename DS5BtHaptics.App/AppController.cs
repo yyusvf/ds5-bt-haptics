@@ -138,6 +138,11 @@ internal sealed class AppController : IDisposable
         if (Service != null) Service.Options.Gain = gain;
     }
 
+    public void ApplyLowLatency(bool lowLatency)
+    {
+        if (Service != null) Service.Options.Single = lowLatency;
+    }
+
     public void ShowHint(string title, string message) => tray.ShowHint(title, message, ToolTipIcon.Info);
 
     public void UpdateTray()
@@ -150,6 +155,7 @@ internal sealed class AppController : IDisposable
             (null, _) => (TrayBadge.None, "Bridge aus"),
             _ when model.SetupIncomplete => (TrayBadge.Problem, "Einrichtung unvollständig"),
             (_, null) => (TrayBadge.Waiting, "Warte auf Controller (PS-Taste)"),
+            (_, { Connected: false }) => (TrayBadge.Waiting, "Controller getrennt (PS-Taste)"),
             (_, { HostAttached: true }) => (TrayBadge.Ready,
                 "Verbunden" + (bridge.Battery is int level ? $", Akku {level} %" : "")
                 + (bridge.HapticsActive ? ", Haptik aktiv" : "")),
