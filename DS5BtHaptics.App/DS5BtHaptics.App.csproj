@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -25,7 +25,7 @@
     <PublishSingleFile>true</PublishSingleFile>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
 
-    <Version>0.2.0</Version>
+    <Version>0.2.1</Version>
     <Company>yyusvf</Company>
     <Product>DS5 BT Haptics</Product>
     <AssemblyTitle>DS5 BT Haptics</AssemblyTitle>

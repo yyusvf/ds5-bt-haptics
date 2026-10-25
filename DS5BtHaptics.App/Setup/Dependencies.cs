@@ -9,8 +9,10 @@ using System.Security.Cryptography.X509Certificates;
 namespace DS5BtHaptics.App.Setup;
 
 /// <summary>What HidHide currently does for us.</summary>
-internal sealed record HidHideStatus(bool AppRegistered, bool CloakOn, bool ControllerHidden)
+internal sealed record HidHideStatus(bool AppRegistered, bool CloakOn, bool ControllerHidden, IReadOnlyList<string> Apps)
 {
+    public bool Allows(string exe) => Apps.Contains(exe, StringComparer.OrdinalIgnoreCase);
+
     public bool Ready => AppRegistered && CloakOn && ControllerHidden;
 }
 
@@ -25,6 +27,9 @@ internal static class Dependencies
 
     /// <summary>The elevated helper run of this exe that configures HidHide.</summary>
     public const string HidHideSetupArgument = "--setup-hidhide";
+
+    /// <summary>Elevated helper: "--hidhide-apps reg|unreg &lt;exe&gt;..." lets games see the Bluetooth pad, or not.</summary>
+    public const string HidHideAppsArgument = "--hidhide-apps";
 
     /// <summary>Run by the uninstaller (elevated): makes the Bluetooth controller visible to games again.</summary>
     public const string HidHideUndoArgument = "--undo-hidhide";
@@ -55,22 +60,43 @@ internal static class Dependencies
         }
 
         var lines = output.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        bool registered = lines.Any(l => l.StartsWith("--app-reg", StringComparison.OrdinalIgnoreCase)
-            && l.Contains(ExePath, StringComparison.OrdinalIgnoreCase));
+        var apps = lines.Where(l => l.StartsWith("--app-reg", StringComparison.OrdinalIgnoreCase))
+            .Select(l => l["--app-reg".Length..].Trim().Trim('"'))
+            .ToList();
+        bool registered = apps.Contains(ExePath, StringComparer.OrdinalIgnoreCase);
         bool cloak = lines.Any(l => l.Equals("--cloak-on", StringComparison.OrdinalIgnoreCase));
         bool hidden = lines.Any(IsBluetoothDualSense);
-        return new HidHideStatus(registered, cloak, hidden);
+        return new HidHideStatus(registered, cloak, hidden, apps);
     }
 
     /// <summary>
     /// Starts this exe elevated with <see cref="HidHideSetupArgument"/> and waits for it.
     /// False if the user declined the Windows prompt or the setup failed.
     /// </summary>
-    public static Task<bool> ConfigureHidHideAsync() => Task.Run(() =>
+    public static Task<bool> ConfigureHidHideAsync() => RunElevatedAsync(HidHideSetupArgument);
+
+    /// <summary>Registers (or unregisters) games with HidHide, elevated. False if declined or failed.</summary>
+    public static Task<bool> SetGamesAllowedAsync(IEnumerable<string> exes, bool allowed) =>
+        RunElevatedAsync($"{HidHideAppsArgument} {(allowed ? "reg" : "unreg")} {string.Join(" ", exes.Select(e => $"\"{e}\""))}");
+
+    /// <summary>The elevated half of <see cref="SetGamesAllowedAsync"/>.</summary>
+    public static int RunElevatedHidHideApps(string[] args)
+    {
+        int at = Array.IndexOf(args, HidHideAppsArgument);
+        if (at < 0 || at + 2 >= args.Length || args[at + 1] is not ("reg" or "unreg"))
+        {
+            return 2;
+        }
+        string verb = args[at + 1] == "reg" ? "--app-reg" : "--app-unreg";
+        string commands = string.Join(" ", args[(at + 2)..].Select(exe => $"{verb} \"{exe}\""));
+        return RunCli(commands) == null ? 1 : 0;
+    }
+
+    private static Task<bool> RunElevatedAsync(string arguments) => Task.Run(() =>
     {
         try
         {
-            using Process? helper = Process.Start(new ProcessStartInfo(ExePath, HidHideSetupArgument)
+            using Process? helper = Process.Start(new ProcessStartInfo(ExePath, arguments)
             {
                 UseShellExecute = true,
                 Verb = "runas",

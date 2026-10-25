@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows.Input;
@@ -31,6 +32,8 @@ internal sealed class MainViewModel : ViewModelBase
         RestartCommand = new RelayCommand(() => app.RestartBridge());
         OpenLogCommand = new RelayCommand(OpenLog);
         SetupCommand = new RelayCommand(RunSetup);
+        AddGameCommand = new RelayCommand(AddGame);
+        Games = new ObservableCollection<GameEntry>(settings.NativeGames.Select(Entry));
     }
 
     // ══ Status ════════════════════════════════════════════════════════════════
@@ -179,6 +182,47 @@ internal sealed class MainViewModel : ViewModelBase
     public ICommand RestartCommand { get; }
     public ICommand OpenLogCommand { get; }
     public ICommand SetupCommand { get; }
+    public ICommand AddGameCommand { get; }
+
+    // ══ Games with their own Bluetooth haptics ════════════════════════════════
+
+    public ObservableCollection<GameEntry> Games { get; }
+
+    private GameEntry Entry(string exe) => new(NativeGames.DisplayName(exe), exe, new RelayCommand(() => RemoveGame(exe)));
+
+    private async void AddGame()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Spiel mit eigener Bluetooth-Haptik wählen",
+            Filter = "Spiel (*.exe)|*.exe",
+        };
+        if (app.PickFile(dialog) is not { } exe) return;
+        if (settings.NativeGames.Contains(exe, StringComparer.OrdinalIgnoreCase)) return;
+
+        settings.NativeGames.Add(exe);
+        Games.Add(Entry(exe));
+        app.GamesChanged();
+        // The game has to see the Bluetooth pad that HidHide hides from everyone else.
+        if (Dependencies.HidHideInstalled && !await Dependencies.SetGamesAllowedAsync([exe], allowed: true))
+        {
+            app.ShowHint("HidHide", "Spiel nicht freigegeben – es sieht den Bluetooth-Controller sonst nicht.");
+        }
+        await RefreshSetupAsync();
+    }
+
+    private async void RemoveGame(string exe)
+    {
+        settings.NativeGames.RemoveAll(g => string.Equals(g, exe, StringComparison.OrdinalIgnoreCase));
+        if (Games.FirstOrDefault(g => g.Path == exe) is { } entry) Games.Remove(entry);
+        app.GamesChanged();
+        // Otherwise the game would see both controllers next time.
+        if (hidHide?.Allows(exe) == true)
+        {
+            await Dependencies.SetGamesAllowedAsync([exe], allowed: false);
+        }
+        await RefreshSetupAsync();
+    }
 
 #if DEBUG
     /// <summary>Sample state for --render.</summary>
@@ -211,7 +255,13 @@ internal sealed class MainViewModel : ViewModelBase
         BridgeService? service = app.Service;
         Bridge? bridge = service?.Current;
 
-        if (service == null || service.State == BridgeState.Stopped)
+        if (app.PausedFor is { } game)
+        {
+            ControllerTitle = $"Pausiert für {NativeGames.DisplayName(game)}";
+            ControllerDetail = "Das Spiel steuert die Bluetooth-Haptik selbst. Danach läuft die Bridge wieder.";
+            ControllerOk = false;
+        }
+        else if (service == null || service.State == BridgeState.Stopped)
         {
             ControllerTitle = "Bridge aus";
             ControllerDetail = "Der Controller bleibt ein normales Bluetooth-Gamepad.";
@@ -312,6 +362,18 @@ internal sealed class MainViewModel : ViewModelBase
                     : "Diese App freigeben und den Bluetooth-Controller vor Spielen verstecken (Admin-Rechte).",
                 "Einrichten", ConfigureHidHide);
         }
+        else if (settings.NativeGames.Where(g => !hidHide!.Allows(g)).ToList() is { Count: > 0 } blocked)
+        {
+            ShowIssue("Spiele freigeben",
+                $"{string.Join(", ", blocked.Select(NativeGames.DisplayName))} steuert die Bluetooth-Haptik selbst und "
+                + "muss den Bluetooth-Controller sehen dürfen (Admin-Rechte).",
+                "Freigeben", async () =>
+                {
+                    BusyText = "Wird freigegeben – bitte Windows-Abfrage bestätigen …";
+                    if (!await Dependencies.SetGamesAllowedAsync(blocked, allowed: true))
+                        app.ShowHint("HidHide", "Freigabe abgebrochen oder fehlgeschlagen.");
+                });
+        }
         else
         {
             SetupTitle = null;
@@ -404,3 +466,6 @@ internal sealed class MainViewModel : ViewModelBase
         }
     }
 }
+
+/// <summary>One line in the games list of the settings.</summary>
+internal sealed record GameEntry(string Name, string Path, ICommand RemoveCommand);

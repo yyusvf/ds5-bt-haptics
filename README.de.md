@@ -24,6 +24,11 @@ Klick auf das Tray-Symbol öffnet das Flyout: Bridge an/aus, Status von Controll
 virtuellem USB-Controller und Haptik, **Testen** spielt ein Testmuster wie ein Spiel. In den
 Einstellungen: Haptik-Stärke (sofort wirksam), geringere Latenz, Autostart, Darstellung.
 
+**Spiele mit eigener Bluetooth-Haptik** (z. B. *Cyberpunk 2077*, wird in Steam-Bibliotheken
+automatisch gefunden, weitere lassen sich hinzufügen): Solange eines läuft, pausiert die Bridge und
+das Spiel steuert den Bluetooth-Controller direkt, sonst kommen sich beide in die Quere. Das Flyout
+fragt einmal nach der HidHide-Freigabe für diese Spiele.
+
 Punkt am Tray-Symbol: grün = bereit, gelb = wartet auf Controller, rot = Einrichtung nötig. Nach
 dem Aus- und Einschalten des Controllers verbindet die Bridge selbst neu. **Spiele nach dem
 Verbinden starten.** Bleibt ein Spiel stumm: Steam Input für das Spiel ausschalten und neu starten.

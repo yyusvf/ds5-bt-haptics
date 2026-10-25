@@ -51,6 +51,7 @@ public partial class FlyoutWindow : Window
     private bool isTrayPositioned;
     private int fadeRevision;
     private Screen? placementScreen;
+    private bool pinned;
 
     internal FlyoutWindow(MainViewModel model)
     {
@@ -68,7 +69,10 @@ public partial class FlyoutWindow : Window
         ThemeManager.Changed += ApplyWindowEffects;
         Loaded += (_, _) => LockContentHeight();
 
-        Deactivated += (_, _) => HideFlyout();
+        Deactivated += (_, _) =>
+        {
+            if (!pinned) HideFlyout();
+        };
         DpiChanged += (_, _) =>
         {
             if (IsVisible && isTrayPositioned)
@@ -159,6 +163,24 @@ public partial class FlyoutWindow : Window
         }
     }
 
+    /// <summary>
+    /// Shows a file dialog owned by the flyout. The dialog takes focus, which would otherwise
+    /// close the flyout - and hiding the owner would take the dialog with it.
+    /// </summary>
+    public string? PickFile(Microsoft.Win32.OpenFileDialog dialog)
+    {
+        pinned = true;
+        try
+        {
+            return dialog.ShowDialog(this) == true ? dialog.FileName : null;
+        }
+        finally
+        {
+            pinned = false;
+            Activate();
+        }
+    }
+
     public void HideFlyout()
     {
         outsideWatch.Stop();
@@ -222,7 +244,7 @@ public partial class FlyoutWindow : Window
     /// <summary>Open but inactive: close once neither the opening window nor the flyout is in front.</summary>
     private void CloseIfClickedOutside()
     {
-        if (IsActive)
+        if (IsActive || pinned)
         {
             outsideWatch.Stop();
             return;

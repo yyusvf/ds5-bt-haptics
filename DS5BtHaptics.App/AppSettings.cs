@@ -42,6 +42,12 @@ internal sealed class AppSettings
     /// <summary>Report the controller's real MAC to Windows - drops the Bluetooth link when Steam runs.</summary>
     public bool RealMac { get; set; }
 
+    /// <summary>Full exe paths of games with their own Bluetooth haptics, see <see cref="App.NativeGames"/>.</summary>
+    public List<string> NativeGames { get; set; } = [];
+
+    /// <summary>Known games were looked for once; removing one from the list then sticks.</summary>
+    public bool NativeGamesSearched { get; set; }
+
     [JsonIgnore]
     public bool IsFirstRun { get; private set; }
 
@@ -53,6 +59,7 @@ internal sealed class AppSettings
                 && JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath), Json) is { } loaded)
             {
                 loaded.Gain = Math.Clamp(loaded.Gain, 0.25f, 4f);
+                loaded.NativeGames ??= [];
                 return loaded;
             }
         }

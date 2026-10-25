@@ -12,6 +12,10 @@ internal static class Program
         {
             return Setup.Dependencies.RunElevatedHidHideSetup();
         }
+        if (args.Contains(Setup.Dependencies.HidHideAppsArgument))
+        {
+            return Setup.Dependencies.RunElevatedHidHideApps(args);
+        }
         if (args.Contains(Setup.Dependencies.HidHideUndoArgument))
         {
             return Setup.Dependencies.RunElevatedHidHideUndo();
@@ -87,6 +91,7 @@ internal static class Program
 
         // A preview: settings are never saved and no bridge runs.
         var settings = new AppSettings();
+        settings.NativeGames.AddRange(NativeGames.FindInstalled());
         var model = new Ui.ViewModels.MainViewModel(settings, null!);
         model.Preview(args.Any(a => string.Equals(a, "setup", StringComparison.OrdinalIgnoreCase)));
         var flyout = new Ui.Flyout.FlyoutWindow(model);

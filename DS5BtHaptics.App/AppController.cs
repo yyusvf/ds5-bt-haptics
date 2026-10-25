@@ -19,6 +19,7 @@ internal sealed class AppController : IDisposable
     private readonly MainViewModel model;
     private readonly HwndSource messages;
     private readonly DispatcherTimer poll = new() { Interval = TimeSpan.FromMilliseconds(500) };
+    private readonly DispatcherTimer gameWatch = new() { Interval = TimeSpan.FromMilliseconds(1500) };
     private FlyoutWindow? flyout;
     private bool refreshQueued;
     private bool disposed;
@@ -45,6 +46,7 @@ internal sealed class AppController : IDisposable
         });
 
         poll.Tick += (_, _) => Refresh();
+        gameWatch.Tick += (_, _) => CheckGames();
 
         Autostart.Refresh();
         if (settings.IsFirstRun)
@@ -54,6 +56,17 @@ internal sealed class AppController : IDisposable
             settings.Save();
         }
 
+        if (!settings.NativeGamesSearched)
+        {
+            settings.NativeGames.AddRange(NativeGames.FindInstalled()
+                .Where(g => !settings.NativeGames.Contains(g, StringComparer.OrdinalIgnoreCase)));
+            settings.NativeGamesSearched = true;
+            settings.Save();
+        }
+
+        // Before the bridge starts: a game that is already running keeps the real controller.
+        CheckGames();
+        gameWatch.Start();
         ApplyBridgeEnabled();
         Application.Current.Dispatcher.BeginInvoke(async () =>
         {
@@ -69,15 +82,19 @@ internal sealed class AppController : IDisposable
 
     public BridgeService? Service { get; private set; }
 
+    /// <summary>The running game the bridge steps aside for (see <see cref="NativeGames"/>), or null.</summary>
+    public string? PausedFor { get; private set; }
+
     public void ApplyBridgeEnabled()
     {
-        if (settings.BridgeEnabled && Service == null)
+        bool wanted = settings.BridgeEnabled && PausedFor == null;
+        if (wanted && Service == null)
         {
             Service = new BridgeService(settings.ToOptions());
             Service.Changed += QueueRefresh;
             Service.Start();
         }
-        else if (!settings.BridgeEnabled && Service != null)
+        else if (!wanted && Service != null)
         {
             StopService();
         }
@@ -106,6 +123,7 @@ internal sealed class AppController : IDisposable
         Bridge? bridge = service?.Current;
         (TrayBadge badge, string text) = (service, bridge) switch
         {
+            (null, _) when PausedFor != null => (TrayBadge.None, $"Pausiert für {NativeGames.DisplayName(PausedFor)}"),
             (null, _) => (TrayBadge.None, "Bridge aus"),
             _ when model.SetupIncomplete => (TrayBadge.Problem, "Einrichtung unvollständig"),
             (_, null) => (TrayBadge.Waiting, "Warte auf Controller (PS-Taste)"),
@@ -116,6 +134,25 @@ internal sealed class AppController : IDisposable
             _ => (TrayBadge.Waiting, "Wird eingebunden …"),
         };
         tray.SetStatus(badge, "DS5 BT Haptics – " + text);
+    }
+
+    /// <summary>Pauses the bridge while a listed game runs and resumes once it has exited.</summary>
+    private void CheckGames()
+    {
+        string? game = settings.NativeGames.Count == 0 ? null : NativeGames.FindRunning(settings.NativeGames);
+        if (string.Equals(game, PausedFor, StringComparison.OrdinalIgnoreCase)) return;
+        PausedFor = game;
+        AppLog.Write(game != null
+            ? $"Bridge pausiert: {NativeGames.DisplayName(game)} steuert die Bluetooth-Haptik selbst"
+            : "Spiel beendet, Bridge läuft wieder");
+        ApplyBridgeEnabled();
+    }
+
+    /// <summary>After the list changed in the settings.</summary>
+    public void GamesChanged()
+    {
+        settings.Save();
+        CheckGames();
     }
 
     private void StopService()
@@ -145,6 +182,8 @@ internal sealed class AppController : IDisposable
         model.Refresh();
         UpdateTray();
     }
+
+    public string? PickFile(Microsoft.Win32.OpenFileDialog dialog) => Flyout().PickFile(dialog);
 
     private void ShowFlyout() => Flyout().ShowFlyout(TrayAnchor.Resolve(tray.GetIconBounds()), activate: true);
 
@@ -178,6 +217,7 @@ internal sealed class AppController : IDisposable
     {
         disposed = true;
         poll.Stop();
+        gameWatch.Stop();
         StopService();
         messages.Dispose();
         tray.Dispose();

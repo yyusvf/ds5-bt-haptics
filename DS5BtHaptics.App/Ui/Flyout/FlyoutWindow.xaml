@@ -226,6 +226,33 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Games that send Bluetooth haptics themselves: the bridge pauses while they run. -->
+                    <Border Style="{StaticResource SettingsCard}" Margin="0,8,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Spiele mit eigener Bluetooth-Haptik" Style="{StaticResource SettingTitle}" FontWeight="SemiBold" />
+                            <TextBlock Text="Solange eines läuft, pausiert die Bridge und das Spiel steuert den Controller direkt."
+                                       Style="{StaticResource SettingHint}" />
+                            <ItemsControl ItemsSource="{Binding Games}" Margin="0,8,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Name}" ToolTip="{Binding Path}" Style="{StaticResource BodyText}" Margin="0,0,10,0" />
+                                            <Button Grid.Column="1" Style="{StaticResource GlyphButton}" Width="28" Height="28" FontSize="11"
+                                                    Content="&#xE711;" ToolTip="Entfernen" AutomationProperties.Name="Entfernen"
+                                                    Command="{Binding RemoveCommand}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Content="Spiel hinzufügen …" Style="{StaticResource StandardButton}" HorizontalAlignment="Left"
+                                    Margin="0,4,0,0" Command="{Binding AddGameCommand}" />
+                        </StackPanel>
+                    </Border>
+
                     <Border Style="{StaticResource SettingsCard}" Margin="0,8,0,0">
                         <StackPanel>
                             <Grid>
