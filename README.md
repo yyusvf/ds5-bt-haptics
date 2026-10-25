@@ -16,11 +16,13 @@ Game ──USB audio ch 3/4──▶ virtual USB DualSense (usbip-win2)
                                 └──────────── input report 0x31 ◀────────────────────────
 ```
 
-> Status: experimental, tested on one Windows 11 PC with a standard DualSense. Console output is
-> currently German. Not affiliated with Sony or with the DS5Dongle project.
+> Status: experimental, tested on one Windows 11 PC with a standard DualSense. The app is
+> currently German only. Not affiliated with Sony or with the DS5Dongle project.
 
 ## Features
 
+- Tray app with installer: status, battery, haptics strength, start with Windows; sets up
+  usbip-win2 and HidHide for you and reconnects on its own
 - HD haptics from games that support the DualSense on PC (tested: *007 First Light*, which uses
   Sony's `libScePad`)
 - Adaptive triggers, light bar, player LEDs and classic rumble (output report passthrough)
@@ -31,38 +33,47 @@ Game ──USB audio ch 3/4──▶ virtual USB DualSense (usbip-win2)
 Not yet supported: controller speaker / headphone audio (channels 1/2, needs Opus encoding) and the
 controller microphone (currently delivers silence).
 
-## Requirements
+## Install
 
-- Windows 10 1903+ / Windows 11 x64
-- [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)
-- DualSense or DualSense Edge paired via Windows Bluetooth
-- For `bridge`: [usbip-win2](https://github.com/vadimgrn/usbip-win2/releases) and
-  [HidHide](https://github.com/nefarius/HidHide/releases)
+1. Download **`DS5BtHaptics-Setup.exe`** from the [latest release](https://github.com/yyusvf/ds5-bt-haptics/releases/latest)
+   and run it. It installs for the current user, no admin rights needed; the .NET 8 Desktop
+   Runtime is downloaded if missing.
+2. The app opens next to the clock. If something is missing it shows one step at a time:
+   - **usbip-win2**: downloaded from its official GitHub release, checksum and signature verified,
+     then its own setup runs (it briefly restarts the USB hubs; a restore point doesn't hurt).
+   - **HidHide**: same, from its official release.
+   - **HidHide einrichten**: allows the app to see the Bluetooth DualSense and hides it from games,
+     so they only see the virtual wired one. Windows asks for admin rights once.
+3. Turn on the controller (PS button). Done. The app starts with Windows and lives in the tray.
 
-## Setup
-
-1. Install **usbip-win2** (create a restore point first; installation briefly restarts the USB hubs).
-2. In the **HidHide Configuration Client**:
-   - *Applications*: add `ds5-bt-haptics.exe`
-   - *Devices*: tick the **Bluetooth** DualSense and enable device hiding. Do **not** hide the
-     virtual USB DualSense that appears later.
-3. Don't run other DualSense tools (DSX, DS4Windows) at the same time.
+Don't run other DualSense tools (DSX, DS4Windows) at the same time. Uninstalling offers to make
+the Bluetooth controller visible to games again.
 
 ## Usage
 
-Double-click `DS5 Bridge starten.cmd`, or run:
+Click the tray icon for the flyout:
 
-```
-ds5-bt-haptics.exe bridge
-```
+- **Bridge** switch: off turns the controller back into a plain Bluetooth gamepad
+- Status of the controller (battery), the virtual USB controller and haptics, plus **Testen**,
+  which plays a test pattern through the virtual controller's audio device, like a game
+- Settings: haptics strength (live), lower latency, start with Windows, appearance
 
-No admin rights needed. A "DualSense Wireless Controller" with its own audio device appears; games
-see it as a wired controller. **Start the game after the bridge.** Close the window to stop.
+The dot on the tray icon: green = ready, yellow = waiting for the controller, red = setup needed.
+The bridge reconnects on its own when the controller is switched off and on again.
+**Start games after the controller is connected.** If a game stays silent, disable Steam Input
+for it and restart the game.
+
+The log is in `%LOCALAPPDATA%\DS5BtHaptics\bridge.log` (it contains your controller's Bluetooth
+address, so think twice before posting it).
+
+### Command line
+
+The setup also installs `cli\ds5-bt-haptics.exe` (also available as a zip):
 
 | Command | What it does | Needs |
 |---|---|---|
-| `bridge` | software dongle: game haptics, adaptive triggers, light bar | usbip-win2, HidHide |
-| `devtest` | plays a test pattern on the virtual controller's audio device (ch 3/4), like a game | running `bridge` |
+| `bridge` | the bridge without the app (console, Ctrl+C stops) | usbip-win2, HidHide |
+| `devtest` | plays a test pattern on the virtual controller's audio device (ch 3/4), like a game | running bridge |
 | `loopback` | Windows audio → haptics, live | nothing |
 | `test` | test pattern directly over Bluetooth (left, right, both, sweep, clicks) | nothing |
 | `wav <file>` | audio file → haptics (4-ch files: ch 3/4) | nothing |
@@ -71,7 +82,7 @@ see it as a wired controller. **Start the game after the bridge.** Close the win
 
 Options: `--gain 1..4`, `--single`, `--buf 16..127`, `--latency <ms>`, `--no-attach`, `--real-mac`, `-v`
 
-If a game stays silent, disable Steam Input for it and restart the game.
+The CLI needs its own HidHide entry (*Applications* in the HidHide Configuration Client).
 
 ## How it works / lessons learned
 
@@ -93,8 +104,13 @@ If a game stays silent, disable Steam Input for it and restart the game.
 ## Building
 
 ```
-dotnet publish DS5BtHaptics -c Release -o ds5-bt-haptics
+./build-release.ps1
 ```
+
+Needs the .NET 8 SDK and [Inno Setup 6](https://jrsoftware.org/isinfo.php); writes
+`dist/DS5BtHaptics-Setup.exe`. `DS5BtHaptics` is the bridge and CLI, `DS5BtHaptics.App` the tray
+app (WPF), which compiles the bridge sources in. Its tray shell and theme come from
+[ysfUtil](https://github.com/yyusvf/ysfUtil).
 
 ## Credits and license
 

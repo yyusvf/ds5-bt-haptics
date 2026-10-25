@@ -17,18 +17,39 @@ internal sealed class Bridge(DualSenseDevice dev, Options opts)
     long _inputReports, _outputReports, _outputSkipped, _audioPackets;
     byte[]? _lastOutput;
     long _lastOutputTicks;
+    CancellationTokenSource? _session;
+    byte _lastStatus = 0xFF;
 
-    const string UsbIpExe = @"C:\Program Files\USBip\usbip.exe";
+    public const string UsbIpExe = @"C:\Program Files\USBip\usbip.exe";
+
+    /// <summary>Windows has imported the virtual pad via usbip-win2.</summary>
+    public bool HostAttached { get; private set; }
+    /// <summary>A game or Windows has the speaker/haptics audio interface open.</summary>
+    public bool AudioStreaming { get; private set; }
+    public int? Battery { get; private set; }
+    public bool Charging { get; private set; }
+    /// <summary>Last usbip attach failure, null while fine.</summary>
+    public string? AttachError { get; private set; }
+    public bool ControllerLost { get; private set; }
+    public bool HapticsActive => Environment.TickCount64 - Streamer.LastAudibleTicks < 1500;
+    public string ControllerName => dev.Product;
+
+    /// <summary>Any status above changed. Raised on worker threads.</summary>
+    public event Action? Changed;
 
     void SendBt(Func<byte[]> build)
     {
         lock (_btLock) dev.Write(build());
     }
 
-    public int Run(CancellationToken ct)
+    /// <summary>Runs until <paramref name="outer"/> is cancelled or the controller disconnects (then returns 4).</summary>
+    public int Run(CancellationToken outer)
     {
+        using var session = CancellationTokenSource.CreateLinkedTokenSource(outer);
+        _session = session;
+        var ct = session.Token;
         var edge = dev.Pid == 0x0DF2;
-        var vds = new VirtualDualSense(edge) { Log = Console.WriteLine, Trace = opts.Verbose };
+        var vds = new VirtualDualSense(edge) { Log = AppLog.Write, Trace = opts.Verbose };
         if (opts.Verbose)
             vds.IsoTrace = TextWriter.Synchronized(new StreamWriter(Path.Combine(AppContext.BaseDirectory, "iso-trace.log"), false) { AutoFlush = true });
         _haptics = new PushSource(48000, opts.MaxLatencyMs);
@@ -44,7 +65,7 @@ internal sealed class Bridge(DualSenseDevice dev, Options opts)
         {
             pairing[1] ^= 0x01;
             pairing[6] |= 0x02;
-            Console.WriteLine($"  Pairing-MAC für virtuelles Gerät: {string.Join(":", pairing[1..7].Reverse().Select(b => b.ToString("X2")))}");
+            AppLog.Write($"  Pairing-MAC für virtuelles Gerät: {string.Join(":", Enumerable.Reverse(pairing[1..7]).Select(b => b.ToString("X2")))}");
         }
         SendBt(() => _proto.BuildAudioControl());
 
@@ -53,7 +74,7 @@ internal sealed class Bridge(DualSenseDevice dev, Options opts)
             if (_featureCache.TryGetValue(id, out var c)) return c;
             byte[]? live;
             lock (_btLock) live = dev.GetFeature(id);
-            if (opts.Verbose) Console.WriteLine($"    Feature 0x{id:X2} live vom Controller: {(live == null ? "fehlgeschlagen" : live.Length + " B")}");
+            if (opts.Verbose) AppLog.Write($"    Feature 0x{id:X2} live vom Controller: {(live == null ? "fehlgeschlagen" : live.Length + " B")}");
             return live;
         };
         vds.SetFeature = SetFeature;
@@ -73,29 +94,36 @@ internal sealed class Bridge(DualSenseDevice dev, Options opts)
                 _lastOutput = usb;
                 _lastOutputTicks = now;
             }
-            if (opts.Verbose) Console.WriteLine($"    Ausgabe-Report vom Host: {Convert.ToHexString(usb)}");
+            if (opts.Verbose) AppLog.Write($"    Ausgabe-Report vom Host: {Convert.ToHexString(usb)}");
             SendBt(() => _proto.BuildStateFromUsb(usb.AsSpan(1)));
         };
         vds.SpeakerAudio = OnSpeakerAudio;
         vds.InterfaceChanged = (itf, alt) =>
-            Console.WriteLine($"  Audio-Interface {itf} -> {(alt == 0 ? "aus" : "an")}{(itf == 1 ? " (Lautsprecher/Haptik)" : itf == 2 ? " (Mikrofon)" : "")}");
+        {
+            AppLog.Write($"  Audio-Interface {itf} -> {(alt == 0 ? "aus" : "an")}{(itf == 1 ? " (Lautsprecher/Haptik)" : itf == 2 ? " (Mikrofon)" : "")}");
+            if (itf == 1) { AudioStreaming = alt != 0; Changed?.Invoke(); }
+        };
 
         new Thread(() => InputLoop(vds, ct)) { IsBackground = true, Name = "bt-input", Priority = ThreadPriority.AboveNormal }.Start();
         var hapticThread = new Thread(() =>
         {
             try { Streamer.Run(pcm => SendBt(() => _proto.BuildHapticsOnly(pcm)), _haptics, opts, ct, idleSkip: true); }
-            catch (Win32Exception e) { Console.Error.WriteLine($"Haptik-Sender beendet: {e.Message}"); }
+            catch (Win32Exception e) { AppLog.Write($"Haptik-Sender beendet: {e.Message}"); }
         }) { IsBackground = true, Name = "haptics", Priority = ThreadPriority.Highest };
         hapticThread.Start();
 
-        var server = new UsbIpServer(vds) { Log = m => Console.WriteLine("  " + m) };
+        var server = new UsbIpServer(vds)
+        {
+            Log = m => AppLog.Write("  " + m),
+            AttachedChanged = on => { HostAttached = on; if (!on) AudioStreaming = false; Changed?.Invoke(); },
+        };
         var serverTask = server.RunAsync(ct);
 
         if (File.Exists(UsbIpExe) && !opts.NoAttach) AttachLater(ct);
         else
         {
-            Console.WriteLine("\n  Jetzt in einer Admin-Konsole einbinden:");
-            Console.WriteLine($"    \"{UsbIpExe}\" attach -r 127.0.0.1 -b 1-1\n");
+            AppLog.Write("\n  Jetzt in einer Admin-Konsole einbinden:");
+            AppLog.Write($"    \"{UsbIpExe}\" attach -r 127.0.0.1 -b 1-1\n");
         }
 
         var sw = Stopwatch.StartNew();
@@ -103,17 +131,18 @@ internal sealed class Bridge(DualSenseDevice dev, Options opts)
         {
             ct.WaitHandle.WaitOne(5000);
             if (opts.Verbose)
-                Console.WriteLine($"  [{sw.Elapsed:mm\\:ss}] Eingaben {_inputReports}, Ausgaben {_outputReports} ({_outputSkipped} doppelt verworfen), Audio-Pakete {_audioPackets}, Haptik-Pakete {Streamer.Sent} (max. {Streamer.MaxWriteMs:F1} ms)");
+                AppLog.Write($"  [{sw.Elapsed:mm\\:ss}] Eingaben {_inputReports}, Ausgaben {_outputReports} ({_outputSkipped} doppelt verworfen), Audio-Pakete {_audioPackets}, Haptik-Pakete {Streamer.Sent} (max. {Streamer.MaxWriteMs:F1} ms)");
         }
-        serverTask.Wait(1000);
+        session.Cancel();
+        try { serverTask.Wait(1000); } catch (AggregateException) { }
         hapticThread.Join(500);
-        return 0;
+        return ControllerLost ? 4 : 0;
     }
 
     void AttachLater(CancellationToken ct) => Task.Run(async () =>
     {
         await Task.Delay(500, ct);
-        Console.WriteLine("  Binde virtuellen DualSense über usbip-win2 ein ...");
+        AppLog.Write("  Binde virtuellen DualSense über usbip-win2 ein ...");
         try
         {
             using var p = Process.Start(new ProcessStartInfo(UsbIpExe, "attach -r 127.0.0.1 -b 1-1")
@@ -122,11 +151,16 @@ internal sealed class Bridge(DualSenseDevice dev, Options opts)
             })!;
             var output = (await p.StandardOutput.ReadToEndAsync(ct) + await p.StandardError.ReadToEndAsync(ct)).Trim();
             await p.WaitForExitAsync(ct);
-            Console.WriteLine($"  usbip: {(output.Length > 0 ? output : "ok")} (Exit {p.ExitCode})");
+            AppLog.Write($"  usbip: {(output.Length > 0 ? output : "ok")} (Exit {p.ExitCode})");
+            AttachError = p.ExitCode == 0 ? null : (output.Length > 0 ? output : $"usbip Exit {p.ExitCode}");
+            Changed?.Invoke();
         }
+        catch (OperationCanceledException) { }
         catch (Exception e) when (e is Win32Exception or InvalidOperationException)
         {
-            Console.WriteLine($"  usbip konnte nicht gestartet werden: {e.Message}");
+            AppLog.Write($"  usbip konnte nicht gestartet werden: {e.Message}");
+            AttachError = e.Message;
+            Changed?.Invoke();
         }
     }, ct);
 
@@ -137,7 +171,10 @@ internal sealed class Bridge(DualSenseDevice dev, Options opts)
             var r = dev.ReadInput();
             if (r == null)
             {
-                Console.Error.WriteLine($"  Bluetooth-Controller getrennt (ReadFile Win32-Fehler {dev.LastReadError}, nach {_inputReports} Eingaben).");
+                if (ct.IsCancellationRequested) return;
+                AppLog.Write($"  Bluetooth-Controller getrennt (ReadFile Win32-Fehler {dev.LastReadError}, nach {_inputReports} Eingaben).");
+                ControllerLost = true;
+                _session?.Cancel();
                 return;
             }
             if (r.Length >= 65 && r[0] == 0x31)
@@ -148,12 +185,24 @@ internal sealed class Bridge(DualSenseDevice dev, Options opts)
                 Array.Copy(r, 2, usb, 1, 63);
                 vds.PushInput(usb);
                 Interlocked.Increment(ref _inputReports);
+                if (usb[53] != _lastStatus) UpdateBattery(usb[53]);
             }
             else if (r.Length > 0 && r[0] == 0x01)
             {
                 dev.GetFeature(0x05); // still in simple BT mode: request the full report mode again
             }
         }
+    }
+
+    /// <summary>Status byte of the input report: low nibble level 0..10, high nibble 0 discharging, 1 charging, 2 full (hid-playstation).</summary>
+    void UpdateBattery(byte status)
+    {
+        _lastStatus = status;
+        var level = status & 0x0F;
+        var state = status >> 4;
+        Charging = state == 1;
+        Battery = state == 2 ? 100 : Math.Min(level * 10 + 5, 100);
+        Changed?.Invoke();
     }
 
     /// <summary>4-ch 16-bit 48 kHz packet; channels 3/4 are the voice coils (DS5Dongle audio_loop).</summary>
@@ -175,7 +224,7 @@ internal sealed class Bridge(DualSenseDevice dev, Options opts)
     /// <summary>Feature writes DS5Dongle forwards (0x80 test command / Edge unlock, 0x60-0x62 profiles), with BT CRC.</summary>
     void SetFeature(byte id, byte[] data)
     {
-        if (opts.Verbose) Console.WriteLine($"    SET Feature 0x{id:X2} vom Host: {Convert.ToHexString(data.AsSpan(0, Math.Min(24, data.Length)))}");
+        if (opts.Verbose) AppLog.Write($"    SET Feature 0x{id:X2} vom Host: {Convert.ToHexString(data.AsSpan(0, Math.Min(24, data.Length)))}");
         if (id != 0x80 && id is < 0x60 or > 0x62) return;
         var report = data.Length > 0 && data[0] == id ? (byte[])data.Clone() : new[] { id }.Concat(data).ToArray();
         if (report.Length < 5) return;

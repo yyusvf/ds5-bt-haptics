@@ -1,0 +1,47 @@
+<UserControl x:Class="DS5BtHaptics.App.Ui.Views.StatusCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Self">
+    <!-- Glyph tile, title over detail, optional control on the right. The tile is accent
+         coloured while the part works and grey otherwise. -->
+    <Border Margin="0,0,0,6"
+            Padding="{StaticResource CardPadding}"
+            CornerRadius="{StaticResource RadiusCard}"
+            Background="{DynamicResource CardBrush}">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Border x:Name="GlyphTile"
+                    Width="34" Height="34"
+                    VerticalAlignment="Top"
+                    CornerRadius="{StaticResource RadiusControl}"
+                    Background="{DynamicResource ControlBrush}">
+                <TextBlock x:Name="GlyphText"
+                           Text="{Binding Glyph, ElementName=Self}"
+                           FontFamily="{StaticResource IconFont}"
+                           FontSize="16"
+                           Foreground="{DynamicResource TextDisabledBrush}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+            </Border>
+
+            <StackPanel Grid.Column="1" Margin="12,0,10,0" VerticalAlignment="Center">
+                <TextBlock Style="{StaticResource BodyText}"
+                           FontWeight="SemiBold"
+                           Text="{Binding Title, ElementName=Self}" />
+                <TextBlock Style="{StaticResource SecondaryText}"
+                           FontSize="12"
+                           Margin="0,2,0,0"
+                           TextTrimming="None"
+                           TextWrapping="Wrap"
+                           Text="{Binding Detail, ElementName=Self}" />
+            </StackPanel>
+
+            <ContentPresenter Grid.Column="2" VerticalAlignment="Center" Content="{Binding Accessory, ElementName=Self}" />
+        </Grid>
+    </Border>
+</UserControl>

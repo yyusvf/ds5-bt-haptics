@@ -1,0 +1,23 @@
+<!--
+    Sizes, radii and fonts - everything independent of light/dark. Colours live in Dark.xaml
+    and Light.xaml; no colour is written directly in markup.
+-->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <CornerRadius x:Key="RadiusControl">5</CornerRadius>
+    <CornerRadius x:Key="RadiusCard">8</CornerRadius>
+
+    <sys:Double x:Key="GlyphButtonSize">32</sys:Double>
+    <Thickness x:Key="CardPadding">12</Thickness>
+
+    <FontFamily x:Key="UiFont">Segoe UI</FontFamily>
+    <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+
+    <sys:Double x:Key="FontSizeSmall">11</sys:Double>
+    <sys:Double x:Key="FontSizeBody">13</sys:Double>
+    <sys:Double x:Key="FontSizeTitle">14</sys:Double>
+
+</ResourceDictionary>

@@ -1,0 +1,40 @@
+﻿<!--
+    Dark palette. Light.xaml has the same keys with light values; ThemeManager decides which
+    one is loaded. Every key must exist in both files. Anything independent of the theme
+    belongs in Metrics.xaml.
+-->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ══ Accent ══════════════════════════════════════════════════════════════
+         SystemAccent overrides these with the Windows accent colour; the indigo here is the
+         fallback and the colour of the app icon. -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#635DF1" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#7B76F4" />
+    <SolidColorBrush x:Key="AccentSoftBrush" Color="#26635DF1" />
+    <SolidColorBrush x:Key="OnAccentBrush" Color="#FFFFFF" />
+
+    <!-- ══ Text ════════════════════════════════════════════════════════════════ -->
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#C4C4C4" />
+    <SolidColorBrush x:Key="TextTertiaryBrush" Color="#8A8A8A" />
+    <SolidColorBrush x:Key="TextDisabledBrush" Color="#6A6A6A" />
+
+    <!-- ══ Surfaces ════════════════════════════════════════════════════════════ -->
+    <SolidColorBrush x:Key="WindowBrush" Color="#202020" />
+    <SolidColorBrush x:Key="CardBrush" Color="#2D2D2D" />
+    <SolidColorBrush x:Key="ControlBrush" Color="#424242" />
+    <SolidColorBrush x:Key="ControlHoverBrush" Color="#525252" />
+    <SolidColorBrush x:Key="ControlPressedBrush" Color="#383838" />
+    <SolidColorBrush x:Key="ControlDisabledBrush" Color="#262626" />
+
+    <!-- ══ Strokes ═════════════════════════════════════════════════════════════ -->
+    <SolidColorBrush x:Key="StrokeBrush" Color="#606060" />
+    <SolidColorBrush x:Key="DividerBrush" Color="#303030" />
+    <SolidColorBrush x:Key="StrokeStrongBrush" Color="#3F3F3F" />
+
+    <!-- ══ States ══════════════════════════════════════════════════════════════ -->
+    <SolidColorBrush x:Key="ErrorBrush" Color="#F57B7B" />
+
+</ResourceDictionary>

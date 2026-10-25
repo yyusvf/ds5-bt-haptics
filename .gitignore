@@ -6,3 +6,4 @@ obj/
 # build output and runtime logs (logs contain the controller's Bluetooth address)
 ds5-bt-haptics/
 *.log
+dist/

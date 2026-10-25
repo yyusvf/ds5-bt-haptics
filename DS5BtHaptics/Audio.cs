@@ -213,12 +213,12 @@ internal static class DeviceTest
             .FirstOrDefault(d => d.FriendlyName.Contains("DualSense", StringComparison.OrdinalIgnoreCase));
         if (device == null)
         {
-            Console.Error.WriteLine("Kein DualSense-Audiogerät gefunden (läuft 'bridge'?).");
+            AppLog.Write("Kein DualSense-Audiogerät gefunden (läuft 'bridge'?).");
             return 2;
         }
         var mix = device.AudioClient.MixFormat;
-        Console.WriteLine($"Audiogerät: {device.FriendlyName} ({mix.SampleRate} Hz, {mix.Channels} Kanäle, {mix.BitsPerSample} Bit)");
-        if (mix.Channels != 4 || mix.SampleRate != 48000) { Console.Error.WriteLine("Unerwartetes Format, erwartet 48 kHz / 4 Kanäle."); return 3; }
+        AppLog.Write($"Audiogerät: {device.FriendlyName} ({mix.SampleRate} Hz, {mix.Channels} Kanäle, {mix.BitsPerSample} Bit)");
+        if (mix.Channels != 4 || mix.SampleRate != 48000) { AppLog.Write("Unerwartetes Format, erwartet 48 kHz / 4 Kanäle."); return 3; }
 
         // 3 kHz stereo test pattern -> 48 kHz, 4 channels, haptics on channels 3/4
         var pattern = BufferSource.TestPattern();
@@ -251,7 +251,7 @@ internal static class DeviceTest
         output.Init(provider);
         output.Play();
         while (output.PlaybackState == PlaybackState.Playing) Thread.Sleep(100);
-        Console.WriteLine("Abgespielt.");
+        AppLog.Write("Abgespielt.");
         return 0;
     }
 }

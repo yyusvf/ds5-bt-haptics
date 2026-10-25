@@ -1,0 +1,296 @@
+<Window x:Class="DS5BtHaptics.App.Ui.Flyout.FlyoutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:DS5BtHaptics.App.Ui.Views"
+        Title="DS5 BT Haptics"
+        Width="360"
+        MinWidth="360" MaxWidth="360"
+        MinHeight="72" MaxHeight="560"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Topmost="True"
+        Background="{DynamicResource WindowBrush}"
+        TextOptions.TextFormattingMode="Display"
+        UseLayoutRounding="True"
+        FontFamily="{StaticResource UiFont}">
+
+    <!--
+        A flyout like the Windows 11 volume or Wi-Fi panel: no title bar, next to the tray,
+        gone when clicking elsewhere.
+
+        Deliberately a normal framed window with CaptionHeight 0 instead of WindowStyle="None":
+        only a framed window gets shadow and rounded corners from the window manager. WindowChrome
+        makes the frame invisible, and without a resize border it cannot be dragged.
+    -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0"
+                      ResizeBorderThickness="0"
+                      CornerRadius="0"
+                      GlassFrameThickness="0"
+                      UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="Visible" />
+
+        <!-- Name and explanation on the left, switch on the right. -->
+        <Style x:Key="SettingTitle" TargetType="TextBlock" BasedOn="{StaticResource BodyText}">
+            <Setter Property="Margin" Value="0,0,10,0" />
+        </Style>
+        <Style x:Key="SettingHint" TargetType="TextBlock" BasedOn="{StaticResource SecondaryText}">
+            <Setter Property="TextTrimming" Value="None" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,2,10,0" />
+        </Style>
+    </Window.Resources>
+
+    <Grid x:Name="Root">
+        <Grid Margin="12,8,12,12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- ══ Header ══════════════════════════════════════════════════════ -->
+            <Grid Grid.Row="0" Height="40" Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Button x:Name="BackButton"
+                        Grid.Column="0"
+                        Style="{StaticResource GlyphButton}"
+                        Margin="-4,0,4,0"
+                        Content="&#xE72B;"
+                        ToolTip="Zurück"
+                        Visibility="Collapsed"
+                        Click="OnBack" />
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Image x:Name="Logo"
+                           Width="18" Height="18"
+                           Margin="4,0,10,0"
+                           VerticalAlignment="Center">
+                        <Image.Source>
+                            <BitmapImage UriSource="pack://application:,,,/DS5BtHaptics.ico" DecodePixelWidth="36" />
+                        </Image.Source>
+                    </Image>
+                    <TextBlock x:Name="HeaderText"
+                               Text="DS5 BT Haptics"
+                               VerticalAlignment="Center"
+                               FontSize="{StaticResource FontSizeTitle}"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                </StackPanel>
+
+                <Button x:Name="SettingsButton"
+                        Grid.Column="3"
+                        Style="{StaticResource GlyphButton}"
+                        Content="&#xE713;"
+                        ToolTip="Einstellungen"
+                        Click="OnSettings" />
+                <Button Grid.Column="4"
+                        Style="{StaticResource GlyphButton}"
+                        Margin="6,0,0,0"
+                        Content="&#xE921;"
+                        ToolTip="In den Infobereich"
+                        AutomationProperties.Name="In den Infobereich"
+                        Click="OnMinimize" />
+            </Grid>
+
+            <!-- ══ Status ══════════════════════════════════════════════════════ -->
+            <ScrollViewer x:Name="MainView" Grid.Row="1" Style="{StaticResource ThemedScrollViewer}">
+                <StackPanel>
+                    <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,6">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Bridge" Style="{StaticResource SettingTitle}" FontWeight="SemiBold" />
+                                <TextBlock Text="Bluetooth-Controller als kabelgebundenen DualSense mit HD-Haptik ausgeben"
+                                           Style="{StaticResource SettingHint}" />
+                            </StackPanel>
+                            <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                      IsChecked="{Binding BridgeEnabled, Mode=TwoWay}"
+                                      AutomationProperties.Name="Bridge" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Setup: one missing piece at a time, with the button that fixes it. -->
+                    <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,6"
+                            BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1"
+                            Visibility="{Binding HasSetupIssue, Converter={StaticResource Visible}}">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE7BA;" FontFamily="{StaticResource IconFont}" FontSize="14"
+                                           Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Text="{Binding SetupTitle}" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding SetupDetail}" Style="{StaticResource SettingHint}" Margin="0,6,0,10" />
+                            <TextBlock Text="{Binding BusyText}" Style="{StaticResource SettingHint}" Margin="0,0,0,10"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Visibility="{Binding BusyText, Converter={x:Static views:NullToCollapsed.Instance}}" />
+                            <Button Content="{Binding SetupAction}" Style="{StaticResource StandardButton}"
+                                    HorizontalAlignment="Left"
+                                    Command="{Binding SetupCommand}" IsEnabled="{Binding IsIdle}" />
+                        </StackPanel>
+                    </Border>
+
+                    <views:StatusCard Glyph="&#xE7FC;"
+                                      Title="{Binding ControllerTitle}"
+                                      Detail="{Binding ControllerDetail}"
+                                      IsOk="{Binding ControllerOk}" />
+                    <views:StatusCard Glyph="&#xE88E;"
+                                      Title="{Binding VirtualTitle}"
+                                      Detail="{Binding VirtualDetail}"
+                                      IsOk="{Binding VirtualOk}" />
+                    <views:StatusCard Glyph="&#xE877;"
+                                      Title="{Binding HapticsTitle}"
+                                      Detail="{Binding HapticsDetail}"
+                                      IsOk="{Binding HapticsOk}">
+                        <views:StatusCard.Accessory>
+                            <Button Style="{StaticResource StandardButton}" Padding="12,0"
+                                    Content="{Binding TestLabel}"
+                                    ToolTip="Spielt ein Testmuster über das Audiogerät des virtuellen Controllers, wie ein Spiel"
+                                    Command="{Binding TestCommand}" IsEnabled="{Binding CanTest}" />
+                        </views:StatusCard.Accessory>
+                    </views:StatusCard>
+
+                    <Grid Margin="2,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource SecondaryText}" TextWrapping="Wrap" TextTrimming="None" Margin="0,0,10,0"
+                                   Text="Spiele nach dem Verbinden starten." />
+                        <Button Grid.Column="1" Style="{StaticResource GlyphButton}" Content="&#xE8A5;"
+                                ToolTip="Log anzeigen" AutomationProperties.Name="Log anzeigen"
+                                Command="{Binding OpenLogCommand}" />
+                        <Button Grid.Column="2" Style="{StaticResource GlyphButton}" Margin="6,0,0,0" Content="&#xE72C;"
+                                ToolTip="Bridge neu starten" AutomationProperties.Name="Bridge neu starten"
+                                Command="{Binding RestartCommand}" />
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- ══ Settings ════════════════════════════════════════════════════ -->
+            <!-- Canvas does not contribute to the desired window size: only the main view does. -->
+            <Canvas Grid.Row="1">
+            <Grid x:Name="SettingsView" Visibility="Collapsed"
+                  Width="{Binding ActualWidth, ElementName=MainView}"
+                  Height="{Binding ActualHeight, ElementName=MainView}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <ScrollViewer x:Name="SettingsScroll" Grid.Row="0" Style="{StaticResource ThemedScrollViewer}">
+                <StackPanel>
+                    <Border Style="{StaticResource SettingsCard}">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Haptik-Stärke" Style="{StaticResource SettingTitle}" FontWeight="SemiBold" />
+                                <TextBlock Grid.Column="1" Text="{Binding GainText}" Style="{StaticResource BodyText}"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </Grid>
+                            <Slider Style="{StaticResource VolumeSlider}" Margin="0,6,0,0"
+                                    Minimum="0.25" Maximum="4" SmallChange="0.05" LargeChange="0.25"
+                                    Value="{Binding Gain, Mode=TwoWay}"
+                                    AutomationProperties.Name="Haptik-Stärke" />
+
+                            <Grid Margin="0,14,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Geringere Latenz" Style="{StaticResource SettingTitle}" />
+                                    <TextBlock Text="1 Frame pro Paket: schnellere Haptik, doppelter Bluetooth-Verkehr."
+                                               Style="{StaticResource SettingHint}" />
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                          IsChecked="{Binding LowLatency, Mode=TwoWay}"
+                                          AutomationProperties.Name="Geringere Latenz" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SettingsCard}" Margin="0,8,0,0">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Mit Windows starten" Style="{StaticResource SettingTitle}" />
+                                <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                          IsChecked="{Binding AutostartEnabled, Mode=TwoWay}"
+                                          AutomationProperties.Name="Mit Windows starten" />
+                            </Grid>
+
+                            <TextBlock Style="{StaticResource SecondaryText}" Text="Darstellung" Margin="0,14,0,5" />
+                            <ComboBox Style="{StaticResource ThemedComboBox}"
+                                      ItemsSource="{Binding Themes}"
+                                      SelectedIndex="{Binding ThemeIndex, Mode=TwoWay}"
+                                      AutomationProperties.Name="Darstellung" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SettingsCard}" Margin="0,8,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Echte Controller-Adresse melden" Style="{StaticResource SettingTitle}" />
+                                <TextBlock Text="Nicht empfohlen: Steam trennt dann die Bluetooth-Verbindung."
+                                           Style="{StaticResource SettingHint}" />
+                            </StackPanel>
+                            <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                      IsChecked="{Binding RealMac, Mode=TwoWay}"
+                                      AutomationProperties.Name="Echte Controller-Adresse melden" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+                </ScrollViewer>
+
+                <Grid Grid.Row="1" Margin="2,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0"
+                               Style="{StaticResource SecondaryText}"
+                               Text="{Binding Version}" />
+
+                    <Button Grid.Column="1"
+                            Style="{StaticResource GlyphButton}"
+                            Content="&#xE8A5;"
+                            ToolTip="Log anzeigen"
+                            Command="{Binding OpenLogCommand}" />
+
+                    <Button Grid.Column="2"
+                            Style="{StaticResource StandardButton}"
+                            Margin="8,0,0,0"
+                            Content="Beenden"
+                            Click="OnExit" />
+                </Grid>
+            </Grid>
+            </Canvas>
+        </Grid>
+    </Grid>
+</Window>

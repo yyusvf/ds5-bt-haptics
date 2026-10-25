@@ -53,6 +53,8 @@ internal sealed class UsbIpServer(IUsbIpDevice device, int port = 3240)
     const int UsbSpeedFull = 2;
 
     public Action<string>? Log;
+    /// <summary>True once Windows imported the device, false when that connection ends.</summary>
+    public Action<bool>? AttachedChanged;
 
     public async Task RunAsync(CancellationToken ct)
     {
@@ -76,7 +78,10 @@ internal sealed class UsbIpServer(IUsbIpDevice device, int port = 3240)
     {
         client.NoDelay = true;
         using var _ = client;
+        // Closing the socket is what makes usbip-win2 unplug the virtual device.
+        using var stop = ct.Register(client.Close);
         var stream = client.GetStream();
+        var imported = false;
         try
         {
             var hdr = ReadExact(stream, 8);
@@ -106,17 +111,20 @@ internal sealed class UsbIpServer(IUsbIpDevice device, int port = 3240)
             WriteDeviceInfo(rep, withInterfaces: false);
             stream.Write(rep.ToArray());
             Log?.Invoke("Virtueller DualSense wurde von Windows eingebunden");
+            imported = true;
+            AttachedChanged?.Invoke(true);
 
             var conn = new UsbIpConnection(stream);
             UrbLoop(stream, conn, ct);
         }
-        catch (Exception e) when (e is IOException or SocketException or EndOfStreamException)
+        catch (Exception e) when (e is IOException or SocketException or EndOfStreamException or ObjectDisposedException)
         {
             Log?.Invoke($"Verbindung beendet ({e.GetType().Name}: {e.Message})");
         }
         finally
         {
             device.Detached();
+            if (imported) AttachedChanged?.Invoke(false);
         }
     }
 

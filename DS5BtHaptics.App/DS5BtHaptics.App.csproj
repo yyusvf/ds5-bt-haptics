@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+
+    <!-- UI in WPF, tray icon via the WinForms NotifyIcon (same shell as ysfUtil). -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <UseWPF>true</UseWPF>
+
+    <!-- No App.xaml: Program.Main stays the entry point (single instance, quiet start). -->
+    <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
+
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>DS5BtHaptics</AssemblyName>
+    <RootNamespace>DS5BtHaptics.App</RootNamespace>
+    <ApplicationIcon Condition="Exists('DS5BtHaptics.ico')">DS5BtHaptics.ico</ApplicationIcon>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+    <Version>0.2.0</Version>
+    <Company>yyusvf</Company>
+    <Product>DS5 BT Haptics</Product>
+    <AssemblyTitle>DS5 BT Haptics</AssemblyTitle>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="2.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The bridge itself, shared with the ds5-bt-haptics console tool. -->
+    <Compile Include="..\DS5BtHaptics\*.cs" Exclude="..\DS5BtHaptics\Program.cs" LinkBase="Core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- WinForms and WPF share many type names (Application, Brush, Color, ...). Files that
+         need WinForms import it explicitly. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+    <!-- WPF projects drop System.IO from the implicit usings; the shared bridge code needs it. -->
+    <Using Include="System.IO" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Same icon as the exe, also as a WPF resource for the flyout header. -->
+    <Resource Include="DS5BtHaptics.ico" Condition="Exists('DS5BtHaptics.ico')" />
+  </ItemGroup>
+
+</Project>

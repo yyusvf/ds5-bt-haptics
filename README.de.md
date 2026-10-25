@@ -5,27 +5,31 @@ DualSense-HD-Haptik über Bluetooth unter Windows, ohne Dongle. Eine reine Softw
 USB-DualSense bereit (über usbip-win2) und leitet alles an den Bluetooth-Controller weiter,
 auch die Haptik, die Spiele nur per Kabel senden.
 
-## Einrichtung
+## Installation
 
-1. [usbip-win2](https://github.com/vadimgrn/usbip-win2/releases) installieren (vorher Wiederherstellungspunkt).
-2. Im **HidHide Configuration Client**:
-   - *Applications*: `ds5-bt-haptics.exe` hinzufügen
-   - *Devices*: den **Bluetooth**-DualSense verstecken, den virtuellen USB-DualSense **nicht**
-3. DSX, DS4Windows u. ä. nicht gleichzeitig laufen lassen.
+1. **`DS5BtHaptics-Setup.exe`** aus dem [neuesten Release](https://github.com/yyusvf/ds5-bt-haptics/releases/latest)
+   laden und ausführen (für den aktuellen Benutzer, ohne Adminrechte; die .NET-8-Desktop-Runtime
+   wird bei Bedarf geladen).
+2. Die App öffnet sich neben der Uhr und führt Schritt für Schritt durch das, was fehlt:
+   usbip-win2 installieren, HidHide installieren, HidHide einrichten (einmal Adminrechte).
+   Beide Treiber kommen aus ihren offiziellen GitHub-Releases, Prüfsumme und Signatur werden geprüft.
+3. Controller einschalten (PS-Taste). Fertig: Die App startet mit Windows und lebt im Infobereich.
+
+DSX, DS4Windows u. ä. nicht gleichzeitig laufen lassen. Beim Deinstallieren lässt sich der
+Bluetooth-Controller in HidHide wieder für Spiele sichtbar machen.
 
 ## Benutzung
 
-Doppelklick auf `DS5 Bridge starten.cmd` (keine Adminrechte nötig). **Das Spiel nach der Bridge
-starten.** Bleibt ein Spiel stumm: Steam Input für das Spiel ausschalten und neu starten.
+Klick auf das Tray-Symbol öffnet das Flyout: Bridge an/aus, Status von Controller (Akku),
+virtuellem USB-Controller und Haptik, **Testen** spielt ein Testmuster wie ein Spiel. In den
+Einstellungen: Haptik-Stärke (sofort wirksam), geringere Latenz, Autostart, Darstellung.
 
-| Befehl | Funktion |
-|---|---|
-| `bridge` | Software-Dongle mit Spiel-Haptik, adaptiven Triggern, Lightbar |
-| `devtest` | Testmuster über das Audiogerät des virtuellen Controllers (während `bridge` läuft) |
-| `loopback` | Windows-Sound live als Haptik, ohne Treiber |
-| `test` | Testmuster direkt per Bluetooth |
-| `wav <datei>` | Audiodatei als Haptik |
-| `list` / `selftest` | Controller anzeigen / interne Prüfungen |
+Punkt am Tray-Symbol: grün = bereit, gelb = wartet auf Controller, rot = Einrichtung nötig. Nach
+dem Aus- und Einschalten des Controllers verbindet die Bridge selbst neu. **Spiele nach dem
+Verbinden starten.** Bleibt ein Spiel stumm: Steam Input für das Spiel ausschalten und neu starten.
+
+Kommandozeile: `cli\ds5-bt-haptics.exe` im Installationsordner (`bridge`, `devtest`, `loopback`,
+`test`, `wav <datei>`, `list`, `selftest`), Details in [README.md](README.md).
 
 Noch nicht enthalten: Lautsprecher-/Kopfhörer-Ton und Controller-Mikrofon.
 

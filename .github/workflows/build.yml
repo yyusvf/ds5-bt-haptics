@@ -17,22 +17,28 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - name: Publish
-        run: dotnet publish DS5BtHaptics -c Release -o out/ds5-bt-haptics
-      - name: Self test
-        run: out/ds5-bt-haptics/ds5-bt-haptics.exe selftest
-      - name: Package
+      - name: Install Inno Setup
         shell: pwsh
         run: |
-          Remove-Item out/ds5-bt-haptics/*.pdb -ErrorAction SilentlyContinue
+          if (!(Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+      - name: Build setup
+        shell: pwsh
+        run: ./build-release.ps1
+      - name: Package CLI
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory out/ds5-bt-haptics -Force | Out-Null
+          Copy-Item dist/cli/ds5-bt-haptics.exe out/ds5-bt-haptics/
           Copy-Item "DS5 Bridge starten.cmd", README.md, README.de.md, LICENSE, THIRD_PARTY_NOTICES.md out/
-          Compress-Archive -Path out/* -DestinationPath ds5-bt-haptics-win-x64.zip
+          Compress-Archive -Path out/* -DestinationPath ds5-bt-haptics-cli-win-x64.zip
       - uses: actions/upload-artifact@v4
         with:
           name: ds5-bt-haptics-win-x64
-          path: ds5-bt-haptics-win-x64.zip
+          path: |
+            dist/DS5BtHaptics-Setup.exe
+            ds5-bt-haptics-cli-win-x64.zip
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" ds5-bt-haptics-win-x64.zip --generate-notes --title "${{ github.ref_name }}"
+        run: gh release create "${{ github.ref_name }}" dist/DS5BtHaptics-Setup.exe ds5-bt-haptics-cli-win-x64.zip --generate-notes --title "${{ github.ref_name }}"
