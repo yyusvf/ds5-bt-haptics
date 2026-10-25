@@ -83,7 +83,30 @@ internal sealed class AppController : IDisposable
     public BridgeService? Service { get; private set; }
 
     /// <summary>The running game the bridge steps aside for (see <see cref="NativeGames"/>), or null.</summary>
-    public string? PausedFor { get; private set; }
+    public string? PausedFor => runningGame != null && !string.Equals(runningGame, forcedFor, StringComparison.OrdinalIgnoreCase)
+        ? runningGame
+        : null;
+
+    /// <summary>The running listed game the user switched the bridge on for anyway, or null.</summary>
+    public string? ForcedFor => runningGame != null && string.Equals(runningGame, forcedFor, StringComparison.OrdinalIgnoreCase)
+        ? runningGame
+        : null;
+
+    private string? runningGame;
+
+    /// <summary>Set by "Trotzdem aktivieren"; lasts until that game exits.</summary>
+    private string? forcedFor;
+
+    /// <summary>Bridge on despite the running game, or back to paused.</summary>
+    public void SetForced(bool forced)
+    {
+        if (runningGame == null) return;
+        forcedFor = forced ? runningGame : null;
+        AppLog.Write(forced
+            ? $"Bridge trotz {NativeGames.DisplayName(runningGame)} aktiviert"
+            : $"Bridge wieder pausiert für {NativeGames.DisplayName(runningGame)}");
+        ApplyBridgeEnabled();
+    }
 
     public void ApplyBridgeEnabled()
     {
@@ -140,8 +163,9 @@ internal sealed class AppController : IDisposable
     private void CheckGames()
     {
         string? game = settings.NativeGames.Count == 0 ? null : NativeGames.FindRunning(settings.NativeGames);
-        if (string.Equals(game, PausedFor, StringComparison.OrdinalIgnoreCase)) return;
-        PausedFor = game;
+        if (string.Equals(game, runningGame, StringComparison.OrdinalIgnoreCase)) return;
+        runningGame = game;
+        forcedFor = null;
         AppLog.Write(game != null
             ? $"Bridge pausiert: {NativeGames.DisplayName(game)} steuert die Bluetooth-Haptik selbst"
             : "Spiel beendet, Bridge läuft wieder");

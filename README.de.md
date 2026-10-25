@@ -27,7 +27,8 @@ Einstellungen: Haptik-Stärke (sofort wirksam), geringere Latenz, Autostart, Dar
 **Spiele mit eigener Bluetooth-Haptik** (z. B. *Cyberpunk 2077*, wird in Steam-Bibliotheken
 automatisch gefunden, weitere lassen sich hinzufügen): Solange eines läuft, pausiert die Bridge und
 das Spiel steuert den Bluetooth-Controller direkt, sonst kommen sich beide in die Quere. Das Flyout
-fragt einmal nach der HidHide-Freigabe für diese Spiele.
+fragt einmal nach der HidHide-Freigabe für diese Spiele. **Trotzdem aktivieren** auf der
+Controller-Karte schaltet die Bridge bis zum Spielende trotzdem ein.
 
 Punkt am Tray-Symbol: grün = bereit, gelb = wartet auf Controller, rot = Einrichtung nötig. Nach
 dem Aus- und Einschalten des Controllers verbindet die Bridge selbst neu. **Spiele nach dem

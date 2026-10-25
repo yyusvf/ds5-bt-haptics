@@ -61,7 +61,8 @@ Click the tray icon for the flyout:
 - **Games with their own Bluetooth haptics** (e.g. *Cyberpunk 2077*, found automatically in Steam
   libraries; more can be added): while one runs, the bridge pauses and the game drives the real
   Bluetooth controller itself. Otherwise both paths would fight over the haptics. The flyout asks
-  once to allow such games in HidHide.
+  once to allow such games in HidHide. **Trotzdem aktivieren** on the controller card turns the
+  bridge on anyway until the game exits.
 
 The dot on the tray icon: green = ready, yellow = waiting for the controller, red = setup needed.
 The bridge reconnects on its own when the controller is switched off and on again.

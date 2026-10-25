@@ -146,7 +146,16 @@
                     <views:StatusCard Glyph="&#xE7FC;"
                                       Title="{Binding ControllerTitle}"
                                       Detail="{Binding ControllerDetail}"
-                                      IsOk="{Binding ControllerOk}" />
+                                      IsOk="{Binding ControllerOk}">
+                        <views:StatusCard.Accessory>
+                            <!-- Only while a game with its own Bluetooth haptics runs. -->
+                            <Button Style="{StaticResource StandardButton}" Padding="12,0"
+                                    Content="{Binding ForceLabel}"
+                                    ToolTip="Bridge trotz des laufenden Spiels einschalten (bis es beendet wird). Das Spiel sieht dann beide Controller, die Haptik kann doppelt laufen."
+                                    Command="{Binding ForceCommand}"
+                                    Visibility="{Binding ForceLabel, Converter={x:Static views:NullToCollapsed.Instance}}" />
+                        </views:StatusCard.Accessory>
+                    </views:StatusCard>
                     <views:StatusCard Glyph="&#xE88E;"
                                       Title="{Binding VirtualTitle}"
                                       Detail="{Binding VirtualDetail}"

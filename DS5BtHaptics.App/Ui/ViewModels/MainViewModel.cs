@@ -20,6 +20,7 @@ internal sealed class MainViewModel : ViewModelBase
     private string virtualTitle = "", virtualDetail = "";
     private string hapticsTitle = "", hapticsDetail = "";
     private bool controllerOk, virtualOk, hapticsOk, canTest, isTesting;
+    private string? forceLabel;
     private string? setupTitle, setupDetail, setupAction, busyText;
     private Func<Task>? setupRun;
     private HidHideStatus? hidHide;
@@ -33,6 +34,11 @@ internal sealed class MainViewModel : ViewModelBase
         OpenLogCommand = new RelayCommand(OpenLog);
         SetupCommand = new RelayCommand(RunSetup);
         AddGameCommand = new RelayCommand(AddGame);
+        ForceCommand = new RelayCommand(() =>
+        {
+            app.SetForced(app.PausedFor != null);
+            Refresh();
+        });
         Games = new ObservableCollection<GameEntry>(settings.NativeGames.Select(Entry));
     }
 
@@ -49,6 +55,9 @@ internal sealed class MainViewModel : ViewModelBase
     public string HapticsTitle { get => hapticsTitle; private set => Set(ref hapticsTitle, value); }
     public string HapticsDetail { get => hapticsDetail; private set => Set(ref hapticsDetail, value); }
     public bool HapticsOk { get => hapticsOk; private set => Set(ref hapticsOk, value); }
+
+    /// <summary>Button on the controller card while a listed game runs; null hides it.</summary>
+    public string? ForceLabel { get => forceLabel; private set => Set(ref forceLabel, value); }
 
     public bool CanTest { get => canTest; private set => Set(ref canTest, value); }
 
@@ -183,6 +192,7 @@ internal sealed class MainViewModel : ViewModelBase
     public ICommand OpenLogCommand { get; }
     public ICommand SetupCommand { get; }
     public ICommand AddGameCommand { get; }
+    public ICommand ForceCommand { get; }
 
     // ══ Games with their own Bluetooth haptics ════════════════════════════════
 
@@ -255,6 +265,7 @@ internal sealed class MainViewModel : ViewModelBase
         BridgeService? service = app.Service;
         Bridge? bridge = service?.Current;
 
+        ForceLabel = app.PausedFor != null ? "Trotzdem aktivieren" : app.ForcedFor != null ? "Pausieren" : null;
         if (app.PausedFor is { } game)
         {
             ControllerTitle = $"Pausiert für {NativeGames.DisplayName(game)}";
