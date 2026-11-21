@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    DS5 BT Haptics as a ysfUtil plugin: the same bridge (../DS5BtHaptics, linked, not copied) with
+    cards for ysfUtil's flyout. Built and zipped by build-plugin.ps1; every release carries the zip
+    as ds5-haptics.ysfplugin.zip, which ysfUtil installs and updates from.
+
+    Needs ysfUtil's SDK next to this repository (..\..\ysfUtil), or pass -p:YsfUtilSdk=<path>.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>DS5BtHaptics.Plugin</AssemblyName>
+    <RootNamespace>DS5BtHaptics.Plugin</RootNamespace>
+    <!-- Copies the plugin's own dependencies (NAudio) next to it. -->
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <PluginVersion Condition="'$(PluginVersion)' == ''">0.0.0</PluginVersion>
+    <Version>$(PluginVersion)</Version>
+    <YsfUtilSdk Condition="'$(YsfUtilSdk)' == ''">$(MSBuildThisFileDirectory)..\..\ysfUtil\Sdk\YsfUtil.Sdk.csproj</YsfUtilSdk>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+    <!-- WPF projects drop System.IO from the implicit usings; the shared bridge code needs it. -->
+    <Using Include="System.IO" />
+    <Using Include="YsfUtil.Modules" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The bridge itself, shared with the app and the ds5-bt-haptics console tool. -->
+    <Compile Include="..\DS5BtHaptics\*.cs" Exclude="..\DS5BtHaptics\Program.cs" LinkBase="Core" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
+    <!-- ysfUtil provides the SDK at runtime: reference it, never ship it. -->
+    <ProjectReference Include="$(YsfUtilSdk)" Private="false" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <!-- plugin.json: what ysfUtil reads before loading anything. The version is the app's. -->
+  <Target Name="WritePluginManifest" AfterTargets="Build;Publish">
+    <PropertyGroup>
+      <PluginManifest>{
+  "id": "ds5-haptics",
+  "name": "DS5 BT Haptics",
+  "description": "DualSense HD haptics, adaptive triggers and light bar over Bluetooth. Needs usbip-win2 and HidHide, set up from the flyout.",
+  "glyph": "",
+  "version": "$(Version)",
+  "apiVersion": 1,
+  "assembly": "DS5BtHaptics.Plugin.dll",
+  "module": "DS5BtHaptics.Plugin.Ds5Module",
+  "process": "DS5BtHaptics.Plugin.Ds5PluginProcess"
+}</PluginManifest>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(OutDir)plugin.json" Lines="$(PluginManifest)" Overwrite="true" />
+    <WriteLinesToFile Condition="'$(PublishDir)' != '' And '$(_IsPublishing)' == 'true'" File="$(PublishDir)plugin.json" Lines="$(PluginManifest)" Overwrite="true" />
+  </Target>
+
+</Project>

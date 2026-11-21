@@ -119,6 +119,22 @@ Needs the .NET 8 SDK and [Inno Setup 6](https://jrsoftware.org/isinfo.php); writ
 app (WPF), which compiles the bridge sources in. Its tray shell and theme come from
 [ysfUtil](https://github.com/yyusvf/ysfUtil).
 
+## ysfUtil plugin
+
+DS5 BT Haptics also runs inside [ysfUtil](https://github.com/yyusvf/ysfUtil) as a plugin: Settings →
+Modules → DS5 BT Haptics → Install. It uses the same bridge (`DS5BtHaptics/`, linked into
+`DS5BtHaptics.Plugin/`); the bridge runs in its own ysfUtil process, just like in the app. Every
+release builds `ds5-haptics.ysfplugin.zip` and attaches it, so ysfUtil updates along with the app.
+
+To build it locally, check out ysfUtil next to this repository (`..\ysfUtil`) and run:
+
+```
+powershell -File DS5BtHaptics.Plugin/build-plugin.ps1
+```
+
+Output: `dist\ds5-haptics.ysfplugin.zip`. Try it with `ysfUtil.exe --install-plugin <zip>`.
+In ysfUtil, HidHide has to allow ysfUtil.exe instead of the app; the plugin's setup card does that.
+
 ## Credits and license
 
 - [DS5Dongle](https://github.com/awalol/DS5Dongle) by awalol: Bluetooth haptics protocol, USB

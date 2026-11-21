@@ -1,0 +1,106 @@
+<UserControl x:Class="DS5BtHaptics.Plugin.Ds5FlyoutView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sdk="clr-namespace:YsfUtil.Ui.Views;assembly=YsfUtil.Sdk"
+>
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="VisibleWhen" />
+        <!-- A status row: dot, title over detail. The dot is accent while that part works. -->
+        <Style x:Key="StatusDot" TargetType="Ellipse">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="Height" Value="8" />
+            <Setter Property="Margin" Value="2,6,12,0" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Fill" Value="{DynamicResource TextDisabledBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                    <Setter Property="Fill" Value="{DynamicResource AccentBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+    <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,6">
+        <Expander Style="{StaticResource FeatureExpander}" sdk:SectionState.Key="ds5-haptics"
+                  AutomationProperties.Name="DS5 BT Haptics options">
+            <Expander.Header>
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <Border Width="34" Height="34" CornerRadius="{StaticResource RadiusControl}" Background="{DynamicResource AccentSoftBrush}">
+                    <TextBlock Text="&#xE7FC;" FontFamily="{StaticResource IconFont}" FontSize="16"
+                               Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                </Border>
+                <StackPanel Grid.Column="1" Margin="12,0,8,0" VerticalAlignment="Center">
+                    <TextBlock Text="DS5 BT Haptics" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Summary}" Margin="0,2,0,0" FontSize="12" TextWrapping="Wrap" TextTrimming="None">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource SecondaryText}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SummaryIsProblem}" Value="True">
+                                        <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+                <CheckBox Grid.Column="2" Style="{StaticResource ToggleSwitch}" VerticalAlignment="Center"
+                          IsChecked="{Binding BridgeEnabled, Mode=TwoWay}" AutomationProperties.Name="Bridge"
+                          ToolTip="Off turns the controller back into a plain Bluetooth gamepad." />
+            </Grid>
+            </Expander.Header>
+            <StackPanel>
+                <!-- One setup step at a time: install usbip-win2, install HidHide, set it up, allow games. -->
+                <Border Padding="10" Margin="0,0,0,10" CornerRadius="{StaticResource RadiusControl}"
+                        BorderThickness="1" BorderBrush="{DynamicResource ErrorBrush}" Background="{DynamicResource ControlBrush}"
+                        Visibility="{Binding HasSetupIssue, Converter={StaticResource VisibleWhen}}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding SetupTitle}" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding SetupDetail}" Style="{StaticResource SecondaryText}" FontSize="12"
+                                   TextWrapping="Wrap" TextTrimming="None" Margin="0,2,0,8" />
+                        <Button Content="{Binding SetupAction}" Style="{StaticResource StandardButton}"
+                                Command="{Binding SetupCommand}" IsEnabled="{Binding IsIdle}" />
+                        <TextBlock Text="{Binding BusyText}" Style="{StaticResource SecondaryText}" FontSize="12" TextWrapping="Wrap"
+                                   TextTrimming="None" Margin="0,6,0,0" Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />
+                    </StackPanel>
+                </Border>
+
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Ellipse Style="{StaticResource StatusDot}" Tag="{Binding ControllerOk}" />
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="{Binding ControllerTitle}" Style="{StaticResource BodyText}" />
+                        <TextBlock Text="{Binding ControllerDetail}" Style="{StaticResource SecondaryText}" FontSize="12"
+                                   TextWrapping="Wrap" TextTrimming="None" Margin="0,1,0,0" />
+                    </StackPanel>
+                </Grid>
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Ellipse Style="{StaticResource StatusDot}" Tag="{Binding VirtualOk}" />
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="{Binding VirtualTitle}" Style="{StaticResource BodyText}" />
+                        <TextBlock Text="{Binding VirtualDetail}" Style="{StaticResource SecondaryText}" FontSize="12"
+                                   TextWrapping="Wrap" TextTrimming="None" Margin="0,1,0,0" />
+                    </StackPanel>
+                </Grid>
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Ellipse Style="{StaticResource StatusDot}" Tag="{Binding HapticsOk}" />
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="{Binding HapticsTitle}" Style="{StaticResource BodyText}" />
+                        <TextBlock Text="{Binding HapticsDetail}" Style="{StaticResource SecondaryText}" FontSize="12"
+                                   TextWrapping="Wrap" TextTrimming="None" Margin="0,1,0,0" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <Button Content="{Binding TestLabel}" Style="{StaticResource StandardButton}" Command="{Binding TestCommand}"
+                            IsEnabled="{Binding CanTest}"
+                            ToolTip="Plays a test pattern through the virtual controller's audio device, like a game does." />
+                    <Button Grid.Column="1" Content="{Binding ForceLabel}" Style="{StaticResource StandardButton}" Margin="6,0,0,0"
+                            Command="{Binding ForceCommand}" Visibility="{Binding HasForce, Converter={StaticResource VisibleWhen}}" />
+                </Grid>
+            </StackPanel>
+        </Expander>
+    </Border>
+</UserControl>
