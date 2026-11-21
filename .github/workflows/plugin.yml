@@ -1,0 +1,37 @@
+name: ysfUtil plugin
+
+# New releases get ds5-haptics.ysfplugin.zip from build.yml. Run this by hand to add it to a
+# release that was made before the plugin existed.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to attach the plugin to
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  plugin:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/checkout@v4
+        with:
+          repository: yyusvf/ysfUtil
+          ref: main
+          path: _ysfutil
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Build plugin
+        shell: pwsh
+        run: ./DS5BtHaptics.Plugin/build-plugin.ps1 -Sdk "$PWD/_ysfutil/Sdk/YsfUtil.Sdk.csproj"
+      - name: Attach to release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ inputs.tag }}" dist/ds5-haptics.ysfplugin.zip --clobber
