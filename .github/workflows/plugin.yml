@@ -16,9 +16,8 @@ jobs:
   plugin:
     runs-on: windows-latest
     steps:
+      # Builds from the branch it runs on: older tags don't contain the plugin project yet.
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag }}
       - uses: actions/checkout@v4
         with:
           repository: yyusvf/ysfUtil
