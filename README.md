@@ -12,12 +12,13 @@ Game ──USB audio ch 3/4──▶ virtual USB DualSense (usbip-win2)
                                 │  USB/IP on 127.0.0.1:3240
                                 ▼
                        ds5-bt-haptics bridge ──report 0x32 (3 kHz haptics)──▶ DualSense (Bluetooth)
+                                │             ──report 0x36/0x39 (haptics + Opus speaker audio)──▶
                                 ▲             ──report 0x31 (light bar, triggers, rumble)──▶
                                 └──────────── input report 0x31 ◀────────────────────────
 ```
 
-> Status: experimental, tested on one Windows 11 PC with a standard DualSense. The app is
-> currently German only. Not affiliated with Sony or with the DS5Dongle project.
+> Status: experimental, tested on one Windows 11 PC with a standard DualSense. The app speaks
+> English and German. Not affiliated with Sony or with the DS5Dongle project.
 
 ## Features
 
@@ -28,10 +29,14 @@ Game ──USB audio ch 3/4──▶ virtual USB DualSense (usbip-win2)
 - Adaptive triggers, light bar, player LEDs and classic rumble (output report passthrough)
 - Buttons, sticks, touchpad, motion sensors (input report passthrough, ~440 Hz)
 - `loopback` mode: turns whatever Windows is playing into haptics; works with any game, no driver needed
+- Controller speaker and headphone jack: Windows sound on the virtual controller (channels 1/2)
+  is Opus-encoded and sent along with the haptics, as DS5Dongle does; the Windows volume slider applies
+- Several controllers at once (up to 4), each with its own virtual pad that it gets back after reconnecting
+- Battery warning at 20 % and 10 %, switch a controller off after a chosen idle time or from the flyout
+- Update check: a new release is downloaded, checked against GitHub's SHA-256 and installed with one click
 - No kernel driver of its own, no test signing: uses the signed usbip-win2 driver
 
-Not yet supported: controller speaker / headphone audio (channels 1/2, needs Opus encoding) and the
-controller microphone (currently delivers silence).
+Not yet supported: the controller microphone (currently delivers silence).
 
 ## Install
 
@@ -56,7 +61,8 @@ Click the tray icon for the flyout:
 - **Bridge** switch: off turns the controller back into a plain Bluetooth gamepad
 - Status of the controller (battery), the virtual USB controller and haptics, plus **Testen**,
   which plays a test pattern through the virtual controller's audio device, like a game
-- Settings: haptics strength (live), lower latency, start with Windows, appearance
+- Settings: haptics strength (live), lower latency, speaker and headphones, battery warning,
+  switch off when idle, start with Windows, language, appearance, automatic update check
 
 - **Games with their own Bluetooth haptics** (e.g. *Cyberpunk 2077*, found automatically in Steam
   libraries; more can be added): while one runs, the bridge pauses and the game drives the real

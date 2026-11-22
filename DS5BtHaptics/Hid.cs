@@ -52,6 +52,53 @@ internal static class Native
     public const int CapsReportIdOffset = 2;
 }
 
+/// <summary>Bluetooth link control without extra drivers (as DS4Windows disconnects controllers).</summary>
+internal static class Bluetooth
+{
+    [StructLayout(LayoutKind.Sequential)]
+    struct BLUETOOTH_FIND_RADIO_PARAMS { public int dwSize; }
+
+    [DllImport("bthprops.cpl", SetLastError = true)] static extern IntPtr BluetoothFindFirstRadio(ref BLUETOOTH_FIND_RADIO_PARAMS p, out IntPtr radio);
+    [DllImport("bthprops.cpl", SetLastError = true)] static extern bool BluetoothFindNextRadio(IntPtr find, out IntPtr radio);
+    [DllImport("bthprops.cpl", SetLastError = true)] static extern bool BluetoothFindRadioClose(IntPtr find);
+    [DllImport("kernel32.dll", SetLastError = true)] static extern bool DeviceIoControl(IntPtr h, uint code, ref ulong addr, int inSize, IntPtr outBuf, int outSize, out int returned, IntPtr ovl);
+    [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+
+    const uint IOCTL_BTH_DISCONNECT_DEVICE = 0x41000C;
+
+    /// <summary>Drops the link to <paramref name="address"/>; a DualSense then switches itself off.</summary>
+    public static bool Disconnect(ulong address)
+    {
+        var p = new BLUETOOTH_FIND_RADIO_PARAMS { dwSize = Marshal.SizeOf<BLUETOOTH_FIND_RADIO_PARAMS>() };
+        var find = BluetoothFindFirstRadio(ref p, out var radio);
+        if (find == IntPtr.Zero) return false;
+        var ok = false;
+        try
+        {
+            do
+            {
+                var addr = address;
+                ok |= DeviceIoControl(radio, IOCTL_BTH_DISCONNECT_DEVICE, ref addr, sizeof(ulong), IntPtr.Zero, 0, out _, IntPtr.Zero);
+                CloseHandle(radio);
+            } while (!ok && BluetoothFindNextRadio(find, out radio));
+        }
+        finally
+        {
+            BluetoothFindRadioClose(find);
+        }
+        return ok;
+    }
+
+    /// <summary>Address from feature report 0x09 (bytes 1..6, little endian), 0 if unreadable.</summary>
+    public static ulong AddressFromPairing(byte[]? pairing)
+    {
+        if (pairing is not { Length: >= 7 }) return 0;
+        ulong a = 0;
+        for (var i = 6; i >= 1; i--) a = a << 8 | pairing[i];
+        return a;
+    }
+}
+
 internal sealed class DualSenseDevice : IDisposable
 {
     public const ushort SonyVid = 0x054C;

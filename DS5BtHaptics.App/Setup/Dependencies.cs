@@ -9,11 +9,12 @@ using System.Security.Cryptography.X509Certificates;
 namespace DS5BtHaptics.App.Setup;
 
 /// <summary>What HidHide currently does for us.</summary>
-internal sealed record HidHideStatus(bool AppRegistered, bool CloakOn, bool ControllerHidden, IReadOnlyList<string> Apps)
+/// <param name="NewController">A connected Bluetooth DualSense is not hidden yet (e.g. a second controller).</param>
+internal sealed record HidHideStatus(bool AppRegistered, bool CloakOn, bool ControllerHidden, IReadOnlyList<string> Apps, bool NewController = false)
 {
     public bool Allows(string exe) => Apps.Contains(exe, StringComparer.OrdinalIgnoreCase);
 
-    public bool Ready => AppRegistered && CloakOn && ControllerHidden;
+    public bool Ready => AppRegistered && CloakOn && ControllerHidden && !NewController;
 }
 
 /// <summary>
@@ -66,7 +67,17 @@ internal static class Dependencies
         bool registered = apps.Contains(ExePath, StringComparer.OrdinalIgnoreCase);
         bool cloak = lines.Any(l => l.Equals("--cloak-on", StringComparison.OrdinalIgnoreCase));
         bool hidden = lines.Any(IsBluetoothDualSense);
-        return new HidHideStatus(registered, cloak, hidden, apps);
+        var hiddenIds = lines.Where(IsBluetoothDualSense).Select(l => l["--dev-hide".Length..].Trim().Trim('"')).ToList();
+        bool newController = false;
+        foreach (DualSenseDevice device in DualSenseDevice.Enumerate())
+        {
+            if (device.IsBluetooth && InstanceId(device.Path) is { } id && !hiddenIds.Contains(id, StringComparer.OrdinalIgnoreCase))
+            {
+                newController = true;
+            }
+            device.Dispose();
+        }
+        return new HidHideStatus(registered, cloak, hidden, apps, hidden && newController);
     }
 
     /// <summary>

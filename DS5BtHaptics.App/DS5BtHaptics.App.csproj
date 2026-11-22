@@ -25,13 +25,14 @@
     <PublishSingleFile>true</PublishSingleFile>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
 
-    <Version>0.2.2</Version>
+    <Version>0.3.0</Version>
     <Company>yyusvf</Company>
     <Product>DS5 BT Haptics</Product>
     <AssemblyTitle>DS5 BT Haptics</AssemblyTitle>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Concentus" Version="2.2.3" />
     <PackageReference Include="NAudio" Version="2.2.1" />
   </ItemGroup>
 

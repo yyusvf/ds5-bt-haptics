@@ -77,6 +77,96 @@ internal sealed class Ds5BtProtocol
         return pkt;
     }
 
+    public const byte ReportAudioSingle = 0x36;
+    public const int ReportAudioSingleSize = 398;
+    public const byte ReportAudioDouble = 0x39;
+    public const int ReportAudioDoubleSize = 547;
+
+    /// <summary>
+    /// Report 0x36 (one haptics frame + one Opus speaker frame) or 0x39 (two of each), as DS5Dongle
+    /// audio_send_single / audio_send_double. Block tag 0x13 plays on the speaker, 0x16 on the headphone jack.
+    /// </summary>
+    public byte[] BuildAudio(ReadOnlySpan<sbyte> haptics, ReadOnlySpan<byte> opus, bool headphones, bool micEnabled = false)
+    {
+        var doubleFrame = haptics.Length == 2 * FrameBytes;
+        if (!doubleFrame && haptics.Length != FrameBytes) throw new ArgumentException("1 or 2 frames expected");
+        if (opus.Length != (doubleFrame ? 2 : 1) * SpeakerEncoder.OpusFrameBytes) throw new ArgumentException("opus frame count");
+        var speakerTag = (byte)((headphones ? 0x16 : 0x13) | (doubleFrame ? 1 << 6 : 0) | 1 << 7);
+
+        byte[] pkt;
+        int at;
+        if (!doubleFrame)
+        {
+            pkt = new byte[ReportAudioSingleSize];
+            pkt[0] = ReportAudioSingle;
+            pkt[1] = NextSeq();
+            pkt[2] = 0x11 | 1 << 7;
+            pkt[3] = 7;
+            pkt[4] = micEnabled ? (byte)0b11111111 : (byte)0b11111110;
+            pkt[5] = pkt[6] = pkt[7] = pkt[8] = pkt[9] = BufferLength;
+            pkt[10] = _packetCounter++;
+            at = 11;
+        }
+        else
+        {
+            pkt = new byte[ReportAudioDoubleSize];
+            pkt[0] = ReportAudioDouble;
+            pkt[1] = NextSeq();
+            pkt[2] = 0x11 | 1 << 7;
+            pkt[3] = 6;
+            pkt[4] = micEnabled ? (byte)0b01111111 : (byte)0b01111110;
+            pkt[5] = pkt[6] = pkt[7] = pkt[8] = BufferLength;
+            _packetCounter += 2;
+            pkt[9] = _packetCounter;
+            at = 10;
+        }
+        pkt[at] = (byte)(0x12 | (doubleFrame ? 1 << 6 : 0) | 1 << 7);
+        pkt[at + 1] = FrameBytes;
+        for (var i = 0; i < haptics.Length; i++) pkt[at + 2 + i] = (byte)haptics[i];
+        at += 2 + haptics.Length;
+        pkt[at] = speakerTag;
+        pkt[at + 1] = SpeakerEncoder.OpusFrameBytes;
+        opus.CopyTo(pkt.AsSpan(at + 2));
+        FillCrc(pkt);
+        return pkt;
+    }
+
+    /// <summary>
+    /// 0x31 with only AudioControl valid: NoiseCancelEnable set, as DS5Dongle does on connect;
+    /// without it the controller attenuates its speaker.
+    /// </summary>
+    public byte[] BuildSpeakerInit()
+    {
+        var pkt = new byte[ReportStateSize];
+        pkt[0] = ReportState;
+        pkt[1] = NextSeq();
+        pkt[2] = 0x10;
+        pkt[3] = 0x80;     // valid_flag0: AllowAudioControl
+        pkt[3 + 7] = 0x08; // AudioControl: MicSelect 0, NoiseCancelEnable
+        FillCrc(pkt);
+        return pkt;
+    }
+
+    /// <summary>
+    /// Speaker and headphone volume plus mute, as DS5Dongle forwards the Windows volume slider
+    /// (usb.cpp AUDIO10_FU_CTRL_VOLUME/MUTE): volume = 100 + dB, 0..100. Without it the controller stays silent.
+    /// </summary>
+    public byte[] BuildVolume(byte volume, bool muted)
+    {
+        var pkt = new byte[ReportStateSize];
+        pkt[0] = ReportState;
+        pkt[1] = NextSeq();
+        pkt[2] = 0x10;
+        const int common = 3;
+        pkt[common + 0] = 0x10 | 0x20;                    // valid_flag0: AllowHeadphoneVolume, AllowSpeakerVolume
+        pkt[common + 1] = 0x02;                           // valid_flag1: AllowAudioMute
+        pkt[common + 4] = volume;                         // VolumeHeadphones
+        pkt[common + 5] = volume;                         // VolumeSpeaker
+        pkt[common + 9] = muted ? (byte)0x60 : (byte)0;   // SpeakerMute | HeadphoneMute
+        FillCrc(pkt);
+        return pkt;
+    }
+
     /// <summary>Same 0x32 control block DS5Dongle sends right after connecting (update_mic_status).</summary>
     public byte[] BuildAudioControl(bool micEnabled = false)
     {

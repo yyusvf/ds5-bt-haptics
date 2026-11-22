@@ -36,6 +36,7 @@
   <ItemGroup>
     <!-- The bridge itself, shared with the app and the ds5-bt-haptics console tool. -->
     <Compile Include="..\DS5BtHaptics\*.cs" Exclude="..\DS5BtHaptics\Program.cs" LinkBase="Core" />
+    <PackageReference Include="Concentus" Version="2.2.3" />
     <PackageReference Include="NAudio" Version="2.2.1" />
     <!-- ysfUtil provides the SDK at runtime: reference it, never ship it. -->
     <ProjectReference Include="$(YsfUtilSdk)" Private="false" ExcludeAssets="runtime" />

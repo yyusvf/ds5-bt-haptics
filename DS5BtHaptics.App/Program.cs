@@ -30,7 +30,7 @@ internal static class Program
         }
 
         // Renders the flyout to a PNG without putting it on screen:
-        // --render <file.png> [light|dark] [settings]
+        // --render <file.png> [light|dark] [settings] [setup] [en]
         int renderAt = Array.FindIndex(args, a => string.Equals(a, "--render", StringComparison.OrdinalIgnoreCase));
         if (renderAt >= 0 && renderAt + 1 < args.Length)
         {
@@ -54,25 +54,29 @@ internal static class Program
         LogFile.Attach();
         AppLog.Write($"DS5 BT Haptics {typeof(Program).Assembly.GetName().Version?.ToString(3)} gestartet");
         AppSettings settings = AppSettings.Load();
+        Ui.Loc.Apply(settings.Language);
         System.Windows.Application application = WpfHost.Ensure(settings.Theme);
         application.DispatcherUnhandledException += (_, e) =>
         {
             AppLog.Write($"Unerwarteter Fehler: {e.Exception}");
             System.Windows.MessageBox.Show(
-                "Unerwarteter Fehler: " + e.Exception.Message,
+                Ui.Loc.T("Unerwarteter Fehler: ", "Unexpected error: ") + e.Exception.Message,
                 "DS5 BT Haptics",
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Error);
             e.Handled = true;
         };
 
-        using (new AppController(settings, quiet))
+        bool updated = args.Any(a => string.Equals(a, "--updated", StringComparison.OrdinalIgnoreCase));
+        using (new AppController(settings, quiet, updated))
         {
             application.Run();
         }
 
         AppLog.Write("Beendet");
         SingleInstance.Release();
+        // Only now: the setup must find the app gone (AppMutex) and the bridge's USB/IP port free.
+        Setup.Updater.RunPendingSetup();
         // Don't let a stuck worker thread keep a tray-less process (and its log) alive.
         Environment.Exit(0);
         return 0;
@@ -89,6 +93,11 @@ internal static class Program
         else if (args.Any(a => string.Equals(a, "dark", StringComparison.OrdinalIgnoreCase)))
         {
             Ui.Theme.ThemeManager.SetMode(ThemeMode.Dark);
+        }
+
+        if (args.Any(a => string.Equals(a, "en", StringComparison.OrdinalIgnoreCase)))
+        {
+            Ui.Loc.Apply(Ui.AppLanguage.English);
         }
 
         // A preview: settings are never saved and no bridge runs.

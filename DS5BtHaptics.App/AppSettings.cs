@@ -31,6 +31,29 @@ internal sealed class AppSettings
 
     public ThemeMode Theme { get; set; } = ThemeMode.System;
 
+    public Ui.AppLanguage Language { get; set; } = Ui.AppLanguage.System;
+
+    /// <summary>Windows sound of the virtual pad on the controller speaker / headphone jack.</summary>
+    public bool Speaker { get; set; } = true;
+
+    /// <summary>Mute the controller audio while nothing plays; stops a quiet whine on headphones.</summary>
+    public bool MuteWhenSilent { get; set; } = true;
+
+    /// <summary>Switch a controller off after this many minutes without input; 0 = never.</summary>
+    public int IdleMinutes { get; set; }
+
+    /// <summary>Tray notification at 20 % and 10 % battery.</summary>
+    public bool BatteryWarning { get; set; } = true;
+
+    /// <summary>Screen corner of the notification banner.</summary>
+    public Ui.Views.NotificationPosition NotificationPosition { get; set; } = Ui.Views.NotificationPosition.BottomRight;
+
+    /// <summary>Tray notification when a controller connects or disconnects.</summary>
+    public bool ConnectionHints { get; set; } = true;
+
+    /// <summary>Look for a new release on GitHub at start and once a day.</summary>
+    public bool UpdateCheck { get; set; } = true;
+
     /// <summary>Off means the app only sits in the tray and the controller stays plain Bluetooth.</summary>
     public bool BridgeEnabled { get; set; } = true;
 
@@ -60,6 +83,7 @@ internal sealed class AppSettings
             {
                 loaded.Gain = Math.Clamp(loaded.Gain, 0.25f, 4f);
                 loaded.NativeGames ??= [];
+                loaded.IdleMinutes = Math.Clamp(loaded.IdleMinutes, 0, 240);
                 return loaded;
             }
         }
@@ -90,5 +114,7 @@ internal sealed class AppSettings
         Gain = Gain,
         Single = LowLatency,
         RealMac = RealMac,
+        Speaker = Speaker,
+        MuteWhenSilent = MuteWhenSilent,
     };
 }

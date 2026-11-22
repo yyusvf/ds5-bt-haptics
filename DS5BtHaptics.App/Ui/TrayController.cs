@@ -28,6 +28,7 @@ internal sealed class TrayController : IDisposable
         };
         SetStatus(TrayBadge.Waiting, "DS5 BT Haptics");
         notifyIcon.Visible = true;
+        notifyIcon.BalloonTipClicked += (_, _) => HintClicked?.Invoke();
 
         // Capture the icon position before Windows can close the tray overflow.
         notifyIcon.MouseDown += (_, e) =>
@@ -54,6 +55,9 @@ internal sealed class TrayController : IDisposable
 
     /// <summary>Left click: toggle the flyout, with the spot it should sit above.</summary>
     public event Action<Rectangle?>? FlyoutToggleRequested;
+
+    /// <summary>A notification from <see cref="ShowHint"/> was clicked.</summary>
+    public event Action? HintClicked;
 
     /// <summary>Right click: show the flyout at the tray icon.</summary>
     public event Action<Rectangle?>? FlyoutRequested;

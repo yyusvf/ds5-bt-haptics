@@ -3,18 +3,35 @@ namespace DS5BtHaptics;
 internal enum BridgeState { Stopped, WaitingForController, Running }
 
 /// <summary>
-/// Keeps the bridge up: waits for a Bluetooth DualSense, runs <see cref="Bridge"/> while it is
-/// connected and starts over once it disconnects. Used by the tray app and by `bridge`.
+/// Keeps the bridges up: one <see cref="Bridge"/> (virtual pad) per Bluetooth DualSense, recognised
+/// by its Bluetooth address, so a controller that reconnects gets its own pad back. Each bridge
+/// serves its controller on a thread of its own. Used by the tray app, the plugin and `bridge`.
 /// </summary>
 internal sealed class BridgeService(Options opts) : IDisposable
 {
+    /// <summary>usbip-win2 offers 8 USB ports; leave room for real devices.</summary>
+    public const int MaxControllers = 4;
+
     readonly object _lock = new();
+    readonly List<Bridge> _bridges = new();
+    readonly HashSet<string> _connectedPaths = new(StringComparer.OrdinalIgnoreCase);
     CancellationTokenSource? _cts;
     Thread? _thread;
 
     public BridgeState State { get; private set; }
-    /// <summary>The bridge for the connected controller, null while waiting or stopped.</summary>
-    public Bridge? Current { get; private set; }
+
+    /// <summary>The first controller's bridge, null while none has connected yet.</summary>
+    public Bridge? Current
+    {
+        get { lock (_lock) return _bridges.Count > 0 ? _bridges[0] : null; }
+    }
+
+    /// <summary>All bridges by slot; a bridge stays while its controller is away.</summary>
+    public IReadOnlyList<Bridge> Bridges
+    {
+        get { lock (_lock) return _bridges.ToArray(); }
+    }
+
     public string? LastError { get; private set; }
     public Options Options => opts;
 
@@ -56,96 +73,137 @@ internal sealed class BridgeService(Options opts) : IDisposable
     void Loop(CancellationToken ct)
     {
         var announced = false;
-        Bridge? bridge = null;
+        var sessions = new List<Thread>();
         try
         {
             while (!ct.IsCancellationRequested)
             {
-                if (bridge?.ServerError is { } failed)
+                foreach (var failed in Bridges.Where(b => b.ServerError != null))
                 {
-                    // e.g. port 3240 taken by a second bridge
-                    LastError = failed.Message;
-                    AppLog.Write($"Bridge-Fehler: {failed}");
-                    DropBridge(ref bridge);
-                    ct.WaitHandle.WaitOne(5000);
-                    continue;
+                    // e.g. the port taken by a second bridge
+                    LastError = failed.ServerError!.Message;
+                    AppLog.Write($"Bridge-Fehler: {failed.ServerError}");
+                    Drop(failed);
                 }
 
-                var dev = FindController();
-                if (dev == null)
+                foreach (var dev in FindNewControllers())
                 {
-                    if (!announced) AppLog.Write("Warte auf DualSense über Bluetooth (PS-Taste drücken) ...");
+                    var address = Bluetooth.AddressFromPairing(dev.GetFeature(0x09));
+                    var bridge = BridgeFor(dev, address);
+                    if (bridge == null)
+                    {
+                        AppLog.Write($"Controller ignoriert: schon {MaxControllers} verbunden");
+                        dev.Dispose();
+                        continue;
+                    }
+                    AppLog.Write($"Controller {bridge.Slot + 1}: {dev.Product} über Bluetooth");
+                    LastError = null;
+                    lock (_lock) _connectedPaths.Add(dev.Path);
+                    var t = new Thread(() => Serve(bridge, dev, ct)) { IsBackground = true, Name = $"bridge-{bridge.Slot + 1}" };
+                    sessions.Add(t);
+                    t.Start();
+                    announced = false;
+                }
+                sessions.RemoveAll(t => !t.IsAlive);
+
+                var running = sessions.Count > 0;
+                if (!running && !announced)
+                {
+                    AppLog.Write("Warte auf DualSense über Bluetooth (PS-Taste drücken) ...");
                     announced = true;
-                    SetState(BridgeState.WaitingForController);
-                    ct.WaitHandle.WaitOne(2000);
-                    continue;
                 }
-
-                announced = false;
-                AppLog.Write($"Controller: {dev.Product} über Bluetooth");
-                // A different model (DualSense vs. Edge) needs a different virtual pad.
-                if (bridge != null && bridge.Pid != dev.Pid) DropBridge(ref bridge);
-                if (bridge == null)
-                {
-                    bridge = new Bridge(opts);
-                    bridge.Changed += () => Changed?.Invoke();
-                    Current = bridge;
-                }
-                LastError = null;
-                SetState(BridgeState.Running);
-                try
-                {
-                    bridge.Connect(dev, ct);
-                }
-                catch (Exception e)
-                {
-                    LastError = e.Message;
-                    AppLog.Write($"Bridge-Fehler: {e}");
-                }
-                finally
-                {
-                    dev.Dispose();
-                }
-                if (ct.IsCancellationRequested) break;
-                SetState(BridgeState.WaitingForController);
-                ct.WaitHandle.WaitOne(LastError == null ? 1000 : 5000);
+                SetState(running ? BridgeState.Running : BridgeState.WaitingForController);
+                ct.WaitHandle.WaitOne(2000);
             }
         }
         finally
         {
-            DropBridge(ref bridge);
+            foreach (var t in sessions) t.Join(2000);
+            foreach (var b in Bridges) Drop(b);
         }
     }
 
-    void DropBridge(ref Bridge? bridge)
+    /// <summary>One Bluetooth connection of one controller, until it drops.</summary>
+    void Serve(Bridge bridge, DualSenseDevice dev, CancellationToken ct)
     {
-        if (bridge == null) return;
-        Current = null;
+        try
+        {
+            bridge.Connect(dev, ct);
+        }
+        catch (Exception e)
+        {
+            LastError = e.Message;
+            AppLog.Write($"Bridge-Fehler: {e}");
+        }
+        finally
+        {
+            lock (_lock) _connectedPaths.Remove(dev.Path);
+            dev.Dispose();
+            Changed?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// The bridge this controller had before; otherwise a pad whose controller is away (one player
+    /// switching controllers keeps the pad the game already uses); otherwise a new one in the first free slot.
+    /// </summary>
+    Bridge? BridgeFor(DualSenseDevice dev, ulong address)
+    {
+        Bridge? bridge;
+        lock (_lock)
+        {
+            bridge = address != 0 ? _bridges.FirstOrDefault(b => b.Address == address && !b.Connected) : null;
+            bridge ??= _bridges.FirstOrDefault(b => !b.Connected && b.Pid == dev.Pid);
+            bridge ??= _bridges.Count >= MaxControllers ? _bridges.FirstOrDefault(b => !b.Connected) : null;
+        }
+        // A different model (DualSense vs. Edge) needs a different virtual pad.
+        if (bridge != null && bridge.Pid != dev.Pid)
+        {
+            Drop(bridge);
+            bridge = null;
+        }
+        if (bridge != null) return bridge;
+
+        lock (_lock)
+        {
+            var slot = Enumerable.Range(0, MaxControllers).FirstOrDefault(i => _bridges.All(b => b.Slot != i), -1);
+            if (slot < 0) return null;
+            bridge = new Bridge(opts, slot);
+            bridge.Changed += () => Changed?.Invoke();
+            _bridges.Add(bridge);
+            _bridges.Sort((a, b) => a.Slot.CompareTo(b.Slot));
+        }
+        Changed?.Invoke();
+        return bridge;
+    }
+
+    void Drop(Bridge bridge)
+    {
+        lock (_lock) _bridges.Remove(bridge);
         bridge.Dispose();
-        bridge = null;
         Changed?.Invoke();
     }
 
     /// <summary>
-    /// A paired controller that is switched off can leave its HID node behind for a moment,
-    /// so only count it once it answers a feature request.
+    /// Bluetooth controllers not served yet. A paired controller that is switched off can leave its
+    /// HID node behind for a moment, so only count it once it answers a feature request.
     /// </summary>
-    DualSenseDevice? FindController()
+    List<DualSenseDevice> FindNewControllers()
     {
-        var devices = DualSenseDevice.Enumerate();
-        var bt = devices.Where(d => d.IsBluetooth).ToList();
-        var dev = bt.Count > 0 ? bt[Math.Min(opts.Index, bt.Count - 1)] : null;
-        foreach (var d in devices.Where(d => d != dev)) d.Dispose();
-        if (dev != null && dev.GetFeature(0x05) == null)
+        var result = new List<DualSenseDevice>();
+        foreach (var d in DualSenseDevice.Enumerate())
         {
-            dev.Dispose();
-            return null;
+            bool known;
+            lock (_lock) known = _connectedPaths.Contains(d.Path);
+            if (!known && d.IsBluetooth && d.GetFeature(0x05) != null) result.Add(d);
+            else d.Dispose();
         }
-        return dev;
+        return result;
     }
 
     void SetState(BridgeState state)
     {
+        if (State == state) return;
         State = state;
         Changed?.Invoke();
     }

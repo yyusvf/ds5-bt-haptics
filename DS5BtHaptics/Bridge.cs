@@ -13,13 +13,14 @@ namespace DS5BtHaptics;
 /// so a dropped Bluetooth link must not unplug it. <see cref="Connect"/> runs once per Bluetooth
 /// connection; the virtual pad lives from the first one until <see cref="Dispose"/>.
 /// </summary>
-internal sealed class Bridge(Options opts) : IDisposable
+internal sealed class Bridge(Options opts, int slot = 0) : IDisposable
 {
     readonly Ds5BtProtocol _proto = new() { BufferLength = opts.BufferLength };
     readonly object _btLock = new();
     readonly Dictionary<byte, byte[]> _featureCache = new();
     readonly CancellationTokenSource _life = new();
     PushSource? _haptics;
+    readonly SpeakerEncoder? _speaker = TryCreateSpeaker();
     VirtualDualSense? _vds;
     Task? _serverTask;
     Thread? _hapticThread;
@@ -28,6 +29,9 @@ internal sealed class Bridge(Options opts) : IDisposable
     byte[]? _lastOutput;
     long _lastOutputTicks;
     byte _lastStatus = 0xFF;
+    long _lastHapticTicks = -10_000;
+    volatile object? _sentMute; // bool? boxed: last mute state sent to the controller
+    byte[]? _lastControls;
 
     public const string UsbIpExe = @"C:\Program Files\USBip\usbip.exe";
 
@@ -43,7 +47,17 @@ internal sealed class Bridge(Options opts) : IDisposable
     public bool Charging { get; private set; }
     /// <summary>Last usbip attach failure, null while fine.</summary>
     public string? AttachError { get; private set; }
-    public bool HapticsActive => Environment.TickCount64 - Streamer.LastAudibleTicks < 1500;
+    public bool HapticsActive => Environment.TickCount64 - Volatile.Read(ref _lastHapticTicks) < 1500;
+    /// <summary>Sound is playing on the controller speaker or headphone jack.</summary>
+    public bool SpeakerActive => _speaker?.Active == true && opts.Speaker;
+    /// <summary>Headphones are plugged into the controller.</summary>
+    public bool Headphones { get; private set; }
+    /// <summary>Real Bluetooth address of the controller (0 if unknown); identifies it across reconnects.</summary>
+    public ulong Address { get; private set; }
+    /// <summary>Position among the bridges: picks the USB/IP port (3240 + slot) and the player number.</summary>
+    public int Slot => slot;
+    /// <summary>When sticks, triggers or buttons last moved (Environment.TickCount64).</summary>
+    public long LastInputTicks { get; private set; } = Environment.TickCount64;
     public string ControllerName { get; private set; } = "DualSense";
 
     /// <summary>The USB/IP server could not run (port taken), null while fine.</summary>
@@ -72,6 +86,7 @@ internal sealed class Bridge(Options opts) : IDisposable
         // Like DS5Dongle init_feature(): reading 0x05 switches to full reports. The static ones are
         // cached from the first connection only, so the virtual pad never changes its identity.
         var calibration = dev.GetFeature(0x05);
+        if (Bluetooth.AddressFromPairing(dev.GetFeature(0x09)) is var address and not 0) Address = address;
         if (_vds == null)
         {
             if (calibration != null) _featureCache[0x05] = calibration;
@@ -95,6 +110,10 @@ internal sealed class Bridge(Options opts) : IDisposable
         lock (_btLock) _dev = dev;
         _lastOutput = null; // the controller lost its state: resend the next output report
         SendBt(() => _proto.BuildAudioControl());
+        if (_speaker != null && opts.Speaker) SendBt(() => _proto.BuildSpeakerInit());
+        SendVolume();
+        LastInputTicks = Environment.TickCount64;
+        _lastControls = null;
         Changed?.Invoke();
 
         using var both = CancellationTokenSource.CreateLinkedTokenSource(ct, _life.Token);
@@ -104,6 +123,7 @@ internal sealed class Bridge(Options opts) : IDisposable
         // Release whatever was held when the link dropped; the virtual pad stays plugged in.
         _vds!.PushInput(NeutralInput());
         Battery = null;
+        Headphones = false;
         _lastStatus = 0xFF;
         Changed?.Invoke();
     }
@@ -146,6 +166,7 @@ internal sealed class Bridge(Options opts) : IDisposable
             SendBt(() => _proto.BuildStateFromUsb(usb.AsSpan(1)));
         };
         vds.SpeakerAudio = OnSpeakerAudio;
+        vds.SpeakerVolumeChanged = SendVolume;
         vds.InterfaceChanged = (itf, alt) =>
         {
             AppLog.Write($"  Audio-Interface {itf} -> {(alt == 0 ? "aus" : "an")}{(itf == 1 ? " (Lautsprecher/Haptik)" : itf == 2 ? " (Mikrofon)" : "")}");
@@ -155,12 +176,17 @@ internal sealed class Bridge(Options opts) : IDisposable
 
         _hapticThread = new Thread(() =>
         {
-            try { Streamer.Run(pcm => SendBt(() => _proto.BuildHapticsOnly(pcm)), _haptics, opts, ct, idleSkip: true); }
+            try
+            {
+                Streamer.Run(pcm => SendBt(() => BuildAudioReport(pcm)), _haptics, opts, ct, idleSkip: true,
+                    busy: () => SpeakerActive,
+                    onAudible: () => Volatile.Write(ref _lastHapticTicks, Environment.TickCount64));
+            }
             catch (Win32Exception e) { AppLog.Write($"Haptik-Sender beendet: {e.Message}"); }
         }) { IsBackground = true, Name = "haptics", Priority = ThreadPriority.Highest };
         _hapticThread.Start();
 
-        var server = new UsbIpServer(vds)
+        var server = new UsbIpServer(vds, Port)
         {
             Log = m => AppLog.Write("  " + m),
             AttachedChanged = on => { HostAttached = on; if (!on) AudioStreaming = false; Changed?.Invoke(); },
@@ -171,7 +197,7 @@ internal sealed class Bridge(Options opts) : IDisposable
         else
         {
             AppLog.Write("\n  Jetzt in einer Admin-Konsole einbinden:");
-            AppLog.Write($"    \"{UsbIpExe}\" attach -r 127.0.0.1 -b 1-1\n");
+            AppLog.Write($"    \"{UsbIpExe}\" {AttachArguments}\n");
         }
 
         if (opts.Verbose)
@@ -194,13 +220,65 @@ internal sealed class Bridge(Options opts) : IDisposable
         _life.Dispose();
     }
 
+    int Port => 3240 + slot;
+    string AttachArguments => slot == 0 ? "attach -r 127.0.0.1 -b 1-1" : $"--tcp-port {Port} attach -r 127.0.0.1 -b 1-1";
+
+    /// <summary>Switches the controller off by dropping its Bluetooth link; the virtual pad stays.</summary>
+    public bool PowerOff()
+    {
+        if (Address == 0 || !Connected) return false;
+        AppLog.Write($"Controller {slot + 1} wird ausgeschaltet (Bluetooth getrennt)");
+        return Bluetooth.Disconnect(Address);
+    }
+
+    /// <summary>The Windows volume slider of the virtual speaker, applied by the controller itself.</summary>
+    void SendVolume()
+    {
+        if (_vds is { } vds) AppLog.Write($"  Lautstärke Controller: {vds.SpeakerVolume}{(vds.SpeakerMuted ? " (stumm)" : "")}");
+        _sentMute = null;
+        UpdateOutputMute();
+    }
+
+    /// <summary>
+    /// Mutes speaker and headphone jack while nothing plays: with the amplifier open at the Windows
+    /// volume, headphones on the controller whine quietly even in silence. Unmutes before the first sound.
+    /// </summary>
+    void UpdateOutputMute()
+    {
+        if (_vds is not { } vds || _speaker == null || _dev == null) return;
+        var mute = vds.SpeakerMuted || !opts.Speaker || opts.MuteWhenSilent && !_speaker.Active;
+        if (_sentMute is bool sent && sent == mute) return;
+        _sentMute = mute;
+        if (opts.Verbose) AppLog.Write($"    Controller-Audio {(mute ? "stumm" : "an")}");
+        SendBt(() => _proto.BuildVolume(vds.SpeakerVolume, mute));
+    }
+
+    static SpeakerEncoder? TryCreateSpeaker()
+    {
+        try { return new SpeakerEncoder(); }
+        catch (Exception e) { AppLog.Write($"Lautsprecher-Encoder nicht verfügbar: {e.Message}"); return null; }
+    }
+
+    /// <summary>Haptics alone (0x32), or with the speaker frames when there is sound to play (0x36/0x39).</summary>
+    byte[] BuildAudioReport(sbyte[] pcm)
+    {
+        if (_speaker != null && opts.Speaker)
+        {
+            if (_speaker.Take(pcm.Length / Ds5BtProtocol.FrameBytes) is { } opus)
+                return _proto.BuildAudio(pcm, opus, Headphones);
+        }
+        return _proto.BuildHapticsOnly(pcm);
+    }
+
     void AttachLater(CancellationToken ct) => Task.Run(async () =>
     {
         await Task.Delay(500, ct);
+        // Port taken (another bridge?): attaching would import whatever listens there instead.
+        if (_serverTask is { IsFaulted: true }) return;
         AppLog.Write("  Binde virtuellen DualSense über usbip-win2 ein ...");
         try
         {
-            using var p = Process.Start(new ProcessStartInfo(UsbIpExe, "attach -r 127.0.0.1 -b 1-1")
+            using var p = Process.Start(new ProcessStartInfo(UsbIpExe, AttachArguments)
             {
                 RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true,
             })!;
@@ -242,12 +320,30 @@ internal sealed class Bridge(Options opts) : IDisposable
                 reports++;
                 Interlocked.Increment(ref _inputReports);
                 if (usb[53] != _lastStatus) UpdateBattery(usb[53]);
+                if (((usb[54] & 1) != 0) != Headphones) { Headphones = (usb[54] & 1) != 0; Changed?.Invoke(); }
+                TrackActivity(usb);
+                UpdateOutputMute();
             }
             else if (r.Length > 0 && r[0] == 0x01)
             {
                 dev.GetFeature(0x05); // still in simple BT mode: request the full report mode again
             }
         }
+    }
+
+    /// <summary>Sticks beyond a small dead zone, triggers or any button count as use; gyro and touchpad noise don't.</summary>
+    void TrackActivity(byte[] usb)
+    {
+        var prev = _lastControls;
+        var moved = prev == null;
+        if (prev != null)
+        {
+            for (var i = 1; i <= 6 && !moved; i++) moved = Math.Abs(usb[i] - prev[i]) > 12; // sticks, triggers
+            for (var i = 8; i <= 10 && !moved; i++) moved = usb[i] != prev[i];               // buttons, D-pad
+        }
+        if (!moved) return;
+        _lastControls = usb[..11];
+        LastInputTicks = Environment.TickCount64;
     }
 
     /// <summary>USB input report 0x01 with sticks centred, D-pad released and no buttons.</summary>
@@ -284,6 +380,12 @@ internal sealed class Bridge(Options opts) : IDisposable
             stereo[2 * i + 1] = BitConverter.ToInt16(buf, o + 6) / 32768f;
         }
         _haptics!.Push(stereo);
+        if (_speaker != null && opts.Speaker)
+            for (var i = 0; i < frames; i++)
+            {
+                var o = offset + i * 8;
+                _speaker.Push(BitConverter.ToInt16(buf, o) / 32768f, BitConverter.ToInt16(buf, o + 2) / 32768f);
+            }
         Interlocked.Increment(ref _audioPackets);
     }
 

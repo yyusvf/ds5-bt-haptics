@@ -10,7 +10,10 @@ internal static class Streamer
     public static long LastAudibleTicks;
 
     /// <param name="idleSkip">Stop sending while the source is silent (bridge mode: no game audio).</param>
-    public static int Run(Action<sbyte[]> send, IHapticSource source, Options opts, CancellationToken ct, bool idleSkip = false)
+    /// <param name="busy">Keeps packets going through haptic silence (speaker audio rides along).</param>
+    /// <param name="onAudible">Called for every packet that carries real haptic signal.</param>
+    public static int Run(Action<sbyte[]> send, IHapticSource source, Options opts, CancellationToken ct, bool idleSkip = false,
+        Func<bool>? busy = null, Action? onAudible = null)
     {
         var framesPerPacket = opts.Single ? 1 : 2;
         var samples = new float[framesPerPacket * Ds5BtProtocol.FrameBytes]; // interleaved stereo
@@ -47,8 +50,8 @@ internal static class Streamer
                 if (real < 0) break;
                 var audible = false;
                 for (var i = 0; i < real * 2 && !audible; i++) audible = Math.Abs(samples[i]) > 1f / 256;
-                if (audible) LastAudibleTicks = Environment.TickCount64;
-                idle = audible ? 0 : idle + 1; // Windows streams zeros all the time; only real signal counts
+                if (audible) { LastAudibleTicks = Environment.TickCount64; onAudible?.Invoke(); }
+                idle = audible || busy?.Invoke() == true ? 0 : idle + 1; // Windows streams zeros all the time; only real signal counts
                 if (idleSkip && idle > 25) continue; // ~0.5 s silence: stop streaming until audio comes back
 
                 for (var i = 0; i < samples.Length; i++)
@@ -91,6 +94,10 @@ internal sealed class Options
     public bool Verbose;
     public bool NoAttach;
     public bool RealMac;
+    /// <summary>bridge: play USB channels 1/2 on the controller speaker / headphone jack.</summary>
+    public bool Speaker = true;
+    /// <summary>bridge: mute speaker and headphone jack while nothing plays (stops the idle whine on headphones).</summary>
+    public bool MuteWhenSilent = true;
 
     public static Options? Parse(string[] args)
     {
@@ -109,6 +116,8 @@ internal sealed class Options
                 case "-v": case "--verbose": o.Verbose = true; break;
                 case "--no-attach": o.NoAttach = true; break;
                 case "--real-mac": o.RealMac = true; break;
+                case "--no-speaker": o.Speaker = false; break;
+                case "--no-silence-mute": o.MuteWhenSilent = false; break;
                 default:
                     if (o.Command == "wav" && o.File is null) o.File = args[i];
                     else return null;
@@ -138,6 +147,7 @@ internal sealed class Options
           --latency <ms>      max. Haptik-Puffer bei loopback/bridge (Standard 60)
           --no-attach         bridge: usbip attach nicht automatisch ausführen
           --real-mac          bridge: echte Controller-MAC melden (trennt BT, wenn Steam läuft)
+          --no-speaker        bridge: kein Ton auf Lautsprecher/Kopfhörerbuchse des Controllers
           --index <n>         welcher BT-Controller, falls mehrere
           -v                  Timing-Statistik ausgeben
         """);

@@ -65,6 +65,40 @@ catch (Win32Exception e)
     return 3;
 }
 
+if (opts.Command == "speaker")
+{
+    // 3 s of 440 Hz on the controller speaker (or headphone jack with --headphones), straight over Bluetooth.
+    var headphones = args.Contains("--headphones");
+    var frames = opts.Single ? 1 : 2;
+    var spk = new SpeakerEncoder();
+    var silence = new sbyte[frames * Ds5BtProtocol.FrameBytes];
+    var period = TimeSpan.FromSeconds(frames * 512 / 48000.0);
+    long phase = 0, ok = 0, failed = 0, skipped = 0;
+    int? lastError = null;
+    try { dev.Write(proto.BuildSpeakerInit()); dev.Write(proto.BuildVolume(80, false)); Console.WriteLine("  AudioControl + Lautstärke 80 gesendet"); }
+    catch (Win32Exception e) { Console.WriteLine($"  AudioControl fehlgeschlagen: Win32 {e.NativeErrorCode}"); }
+    Console.WriteLine($"  Ton 440 Hz, Report 0x{(frames == 1 ? 0x36 : 0x39):X2}, {(headphones ? "Kopfhörer" : "Lautsprecher")} ...");
+    var sw = Stopwatch.StartNew();
+    var next = TimeSpan.Zero;
+    while (sw.Elapsed < TimeSpan.FromSeconds(3))
+    {
+        for (var i = 0; i < frames * 512; i++, phase++)
+        {
+            var v = 0.4f * MathF.Sin(2 * MathF.PI * 440 * phase / 48000f);
+            spk.Push(v, v);
+        }
+        if (spk.Take(frames) is not { } opus) { skipped++; continue; }
+        try { dev.Write(proto.BuildAudio(silence, opus, headphones)); ok++; }
+        catch (Win32Exception e) { failed++; lastError = e.NativeErrorCode; }
+        next += period;
+        var wait = next - sw.Elapsed;
+        if (wait > TimeSpan.Zero) Thread.Sleep(wait);
+    }
+    Console.WriteLine($"  gesendet {ok}, fehlgeschlagen {failed}{(lastError is { } err ? $" (Win32 {err})" : "")}, Vorpuffer {skipped}");
+    dev.Dispose();
+    return failed > 0 ? 4 : 0;
+}
+
 IHapticSource source;
 LoopbackSource? loopback = null;
 switch (opts.Command)

@@ -21,8 +21,19 @@ Bluetooth-Controller in HidHide wieder für Spiele sichtbar machen.
 ## Benutzung
 
 Klick auf das Tray-Symbol öffnet das Flyout: Bridge an/aus, Status von Controller (Akku),
-virtuellem USB-Controller und Haptik, **Testen** spielt ein Testmuster wie ein Spiel. In den
-Einstellungen: Haptik-Stärke (sofort wirksam), geringere Latenz, Autostart, Darstellung.
+virtuellem USB-Controller und Haptik, **Testen** spielt ein Testmuster wie ein Spiel, der
+Ein/Aus-Knopf schaltet den Controller aus. In den Einstellungen: Haptik-Stärke (sofort wirksam),
+geringere Latenz, Lautsprecher und Kopfhörer, Akku-Warnung, Ausschalten ohne Eingabe, Autostart,
+Sprache (Deutsch/Englisch), Darstellung, automatische Update-Suche.
+
+**Lautsprecher und Kopfhörer:** Ton, den Windows oder ein Spiel auf dem virtuellen Controller
+abspielt, kommt aus dem Controller-Lautsprecher oder der Kopfhörerbuchse (Opus-kodiert wie bei
+DS5Dongle, der Windows-Lautstärkeregler gilt).
+
+**Mehrere Controller:** bis zu 4 gleichzeitig, jeder bekommt einen eigenen virtuellen Controller.
+
+**Updates:** Ist ein neues Release da, erscheint eine Karte im Flyout. „Installieren“ lädt das
+Setup, prüft es gegen die SHA-256-Prüfsumme von GitHub und installiert es; die App startet danach neu.
 
 **Spiele mit eigener Bluetooth-Haptik** (z. B. *Cyberpunk 2077*, wird in Steam-Bibliotheken
 automatisch gefunden, weitere lassen sich hinzufügen): Solange eines läuft, pausiert die Bridge und
@@ -37,6 +48,6 @@ Verbinden starten.** Bleibt ein Spiel stumm: Steam Input für das Spiel ausschal
 Kommandozeile: `cli\ds5-bt-haptics.exe` im Installationsordner (`bridge`, `devtest`, `loopback`,
 `test`, `wav <datei>`, `list`, `selftest`), Details in [README.md](README.md).
 
-Noch nicht enthalten: Lautsprecher-/Kopfhörer-Ton und Controller-Mikrofon.
+Noch nicht enthalten: Controller-Mikrofon.
 
 Technische Details, Erkenntnisse und Lizenz: siehe [README.md](README.md).

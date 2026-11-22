@@ -65,9 +65,16 @@ Name: "{autodesktop}\DS5 BT Haptics"; Filename: "{app}\DS5BtHaptics.exe"; Tasks:
 
 [Run]
 Filename: "{app}\DS5BtHaptics.exe"; Description: "{cm:LaunchProgram,DS5 BT Haptics}"; Flags: nowait postinstall skipifsilent
+; Update from inside the app (/UPDATE=1): it exited for the setup, so bring it back to the tray.
+Filename: "{app}\DS5BtHaptics.exe"; Parameters: "--tray --updated"; Flags: nowait; Check: IsAppUpdate
 
 [Code]
 #include "DesktopRuntime.iss"
+
+function IsAppUpdate: Boolean;
+begin
+  Result := ExpandConstant('{param:UPDATE|0}') = '1';
+end;
 
 const
   RunKey = 'Software\Microsoft\Windows\CurrentVersion\Run';

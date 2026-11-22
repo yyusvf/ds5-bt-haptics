@@ -289,7 +289,7 @@ public partial class FlyoutWindow : Window
         BackButton.Visibility = settings ? Visibility.Visible : Visibility.Collapsed;
         Logo.Visibility = settings ? Visibility.Collapsed : Visibility.Visible;
         SettingsButton.Visibility = settings ? Visibility.Collapsed : Visibility.Visible;
-        HeaderText.Text = settings ? "Einstellungen" : "DS5 BT Haptics";
+        HeaderText.Text = settings ? Loc.T("Einstellungen", "Settings") : "DS5 BT Haptics";
         if (changed && IsVisible && !hiding && SystemParameters.ClientAreaAnimation)
         {
             FrameworkElement view = settings ? SettingsView : MainView;

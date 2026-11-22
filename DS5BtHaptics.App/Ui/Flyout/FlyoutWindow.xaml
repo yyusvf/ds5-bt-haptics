@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:DS5BtHaptics.App.Ui.Views"
+        xmlns:ui="clr-namespace:DS5BtHaptics.App.Ui"
         Title="DS5 BT Haptics"
         Width="360"
         MinWidth="360" MaxWidth="360"
@@ -67,7 +68,7 @@
                         Style="{StaticResource GlyphButton}"
                         Margin="-4,0,4,0"
                         Content="&#xE72B;"
-                        ToolTip="Zurück"
+                        ToolTip="{ui:T 'Zurück', 'Back'}"
                         Visibility="Collapsed"
                         Click="OnBack" />
 
@@ -92,20 +93,47 @@
                         Grid.Column="3"
                         Style="{StaticResource GlyphButton}"
                         Content="&#xE713;"
-                        ToolTip="Einstellungen"
+                        ToolTip="{ui:T 'Einstellungen', 'Settings'}"
                         Click="OnSettings" />
                 <Button Grid.Column="4"
                         Style="{StaticResource GlyphButton}"
                         Margin="6,0,0,0"
                         Content="&#xE921;"
-                        ToolTip="In den Infobereich"
-                        AutomationProperties.Name="In den Infobereich"
+                        ToolTip="{ui:T 'In den Infobereich', 'To the notification area'}"
+                        AutomationProperties.Name="{ui:T 'In den Infobereich', 'To the notification area'}"
                         Click="OnMinimize" />
             </Grid>
 
             <!-- ══ Status ══════════════════════════════════════════════════════ -->
             <ScrollViewer x:Name="MainView" Grid.Row="1" Style="{StaticResource ThemedScrollViewer}">
                 <StackPanel>
+                    <!-- A newer release on GitHub: one click downloads, verifies and installs it. -->
+                    <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,6"
+                            BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1"
+                            Visibility="{Binding UpdateTitle, Converter={x:Static views:NullToCollapsed.Instance}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE896;" FontFamily="{StaticResource IconFont}" FontSize="14"
+                                               Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <TextBlock Text="{Binding UpdateTitle}" Style="{StaticResource BodyText}" FontWeight="SemiBold" />
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource SettingHint}" Margin="0,4,10,0"
+                                           Text="{ui:T 'Wird geladen, geprüft und installiert. Die App startet danach neu.', 'Downloaded, verified and installed. The app restarts afterwards.'}"
+                                           Visibility="{Binding UpdateIdle, Converter={StaticResource Visible}}" />
+                                <TextBlock Text="{Binding UpdateBusy}" Style="{StaticResource SettingHint}" Margin="0,4,10,0"
+                                           Visibility="{Binding UpdateBusy, Converter={x:Static views:NullToCollapsed.Instance}}" />
+                            </StackPanel>
+                            <Button Grid.Column="1" Style="{StaticResource StandardButton}" Padding="12,0" VerticalAlignment="Center"
+                                    Content="{ui:T 'Installieren', 'Install'}"
+                                    Command="{Binding InstallUpdateCommand}" IsEnabled="{Binding UpdateIdle}" />
+                        </Grid>
+                    </Border>
+
                     <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,6">
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -114,7 +142,7 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel>
                                 <TextBlock Text="Bridge" Style="{StaticResource SettingTitle}" FontWeight="SemiBold" />
-                                <TextBlock Text="Bluetooth-Controller als kabelgebundenen DualSense mit HD-Haptik ausgeben"
+                                <TextBlock Text="{ui:T 'Bluetooth-Controller als kabelgebundenen DualSense mit HD-Haptik ausgeben', 'Present the Bluetooth controller as a wired DualSense with HD haptics'}"
                                            Style="{StaticResource SettingHint}" />
                             </StackPanel>
                             <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitch}"
@@ -148,14 +176,36 @@
                                       Detail="{Binding ControllerDetail}"
                                       IsOk="{Binding ControllerOk}">
                         <views:StatusCard.Accessory>
-                            <!-- Only while a game with its own Bluetooth haptics runs. -->
-                            <Button Style="{StaticResource StandardButton}" Padding="12,0"
-                                    Content="{Binding ForceLabel}"
-                                    ToolTip="Bridge trotz des laufenden Spiels einschalten (bis es beendet wird). Das Spiel sieht dann beide Controller, die Haptik kann doppelt laufen."
-                                    Command="{Binding ForceCommand}"
-                                    Visibility="{Binding ForceLabel, Converter={x:Static views:NullToCollapsed.Instance}}" />
+                            <StackPanel Orientation="Horizontal">
+                                <Button Style="{StaticResource GlyphButton}" Content="&#xE7E8;"
+                                        ToolTip="{ui:T 'Controller ausschalten', 'Switch the controller off'}"
+                                        AutomationProperties.Name="{ui:T 'Controller ausschalten', 'Switch the controller off'}"
+                                        Command="{Binding PowerOffCommand}"
+                                        Visibility="{Binding CanPowerOff, Converter={StaticResource Visible}}" />
+                                <!-- Only while a game with its own Bluetooth haptics runs. -->
+                                <Button Style="{StaticResource StandardButton}" Padding="12,0"
+                                        Content="{Binding ForceLabel}"
+                                        ToolTip="{ui:T 'Bridge trotz des laufenden Spiels einschalten (bis es beendet wird). Das Spiel sieht dann beide Controller, die Haptik kann doppelt laufen.', 'Turn the bridge on despite the running game (until it exits). The game then sees both controllers, haptics may play twice.'}"
+                                        Command="{Binding ForceCommand}"
+                                        Visibility="{Binding ForceLabel, Converter={x:Static views:NullToCollapsed.Instance}}" />
+                            </StackPanel>
                         </views:StatusCard.Accessory>
                     </views:StatusCard>
+                    <ItemsControl ItemsSource="{Binding ExtraControllers}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <views:StatusCard Glyph="&#xE7FC;" Title="{Binding Title}" Detail="{Binding Detail}" IsOk="{Binding IsOk}">
+                                    <views:StatusCard.Accessory>
+                                        <Button Style="{StaticResource GlyphButton}" Content="&#xE7E8;"
+                                                ToolTip="{ui:T 'Controller ausschalten', 'Switch the controller off'}"
+                                                AutomationProperties.Name="{ui:T 'Controller ausschalten', 'Switch the controller off'}"
+                                                Command="{Binding PowerCommand}"
+                                                Visibility="{Binding CanPowerOff, Converter={StaticResource Visible}}" />
+                                    </views:StatusCard.Accessory>
+                                </views:StatusCard>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                     <views:StatusCard Glyph="&#xE88E;"
                                       Title="{Binding VirtualTitle}"
                                       Detail="{Binding VirtualDetail}"
@@ -167,7 +217,7 @@
                         <views:StatusCard.Accessory>
                             <Button Style="{StaticResource StandardButton}" Padding="12,0"
                                     Content="{Binding TestLabel}"
-                                    ToolTip="Spielt ein Testmuster über das Audiogerät des virtuellen Controllers, wie ein Spiel"
+                                    ToolTip="{ui:T 'Spielt ein Testmuster über das Audiogerät des virtuellen Controllers, wie ein Spiel', 'Plays a test pattern through the audio device of the virtual controller, like a game'}"
                                     Command="{Binding TestCommand}" IsEnabled="{Binding CanTest}" />
                         </views:StatusCard.Accessory>
                     </views:StatusCard>
@@ -179,12 +229,12 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Style="{StaticResource SecondaryText}" TextWrapping="Wrap" TextTrimming="None" Margin="0,0,10,0"
-                                   Text="Spiele nach dem Verbinden starten." />
+                                   Text="{ui:T 'Spiele nach dem Verbinden starten.', 'Start games after connecting.'}" />
                         <Button Grid.Column="1" Style="{StaticResource GlyphButton}" Content="&#xE8A5;"
-                                ToolTip="Log anzeigen" AutomationProperties.Name="Log anzeigen"
+                                ToolTip="{ui:T 'Log anzeigen', 'Show log'}" AutomationProperties.Name="{ui:T 'Log anzeigen', 'Show log'}"
                                 Command="{Binding OpenLogCommand}" />
                         <Button Grid.Column="2" Style="{StaticResource GlyphButton}" Margin="6,0,0,0" Content="&#xE72C;"
-                                ToolTip="Bridge neu starten" AutomationProperties.Name="Bridge neu starten"
+                                ToolTip="{ui:T 'Bridge neu starten', 'Restart bridge'}" AutomationProperties.Name="{ui:T 'Bridge neu starten', 'Restart bridge'}"
                                 Command="{Binding RestartCommand}" />
                     </Grid>
                 </StackPanel>
@@ -209,14 +259,14 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="Haptik-Stärke" Style="{StaticResource SettingTitle}" FontWeight="SemiBold" />
+                                <TextBlock Text="{ui:T 'Haptik-Stärke', 'Haptics strength'}" Style="{StaticResource SettingTitle}" FontWeight="SemiBold" />
                                 <TextBlock Grid.Column="1" Text="{Binding GainText}" Style="{StaticResource BodyText}"
                                            Foreground="{DynamicResource TextSecondaryBrush}" />
                             </Grid>
                             <Slider Style="{StaticResource VolumeSlider}" Margin="0,6,0,0"
                                     Minimum="0.25" Maximum="4" SmallChange="0.05" LargeChange="0.25"
                                     Value="{Binding Gain, Mode=TwoWay}"
-                                    AutomationProperties.Name="Haptik-Stärke" />
+                                    AutomationProperties.Name="{ui:T 'Haptik-Stärke', 'Haptics strength'}" />
 
                             <Grid Margin="0,14,0,0">
                                 <Grid.ColumnDefinitions>
@@ -224,22 +274,93 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel>
-                                    <TextBlock Text="Geringere Latenz" Style="{StaticResource SettingTitle}" />
-                                    <TextBlock Text="1 Frame pro Paket: schnellere Haptik, doppelter Bluetooth-Verkehr."
+                                    <TextBlock Text="{ui:T 'Geringere Latenz', 'Lower latency'}" Style="{StaticResource SettingTitle}" />
+                                    <TextBlock Text="{ui:T '1 Frame pro Paket: schnellere Haptik, doppelter Bluetooth-Verkehr.', '1 frame per packet: faster haptics, twice the Bluetooth traffic.'}"
                                                Style="{StaticResource SettingHint}" />
                                 </StackPanel>
                                 <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitch}"
                                           IsChecked="{Binding LowLatency, Mode=TwoWay}"
-                                          AutomationProperties.Name="Geringere Latenz" />
+                                          AutomationProperties.Name="{ui:T 'Geringere Latenz', 'Lower latency'}" />
                             </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource SettingsCard}" Margin="0,8,0,0">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="{ui:T 'Lautsprecher und Kopfhörer', 'Speaker and headphones'}" Style="{StaticResource SettingTitle}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{ui:T 'Ton des virtuellen Controllers auf dem Controller-Lautsprecher oder der Kopfhörerbuchse.', 'Sound of the virtual controller on the controller speaker or headphone jack.'}"
+                                               Style="{StaticResource SettingHint}" />
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                          IsChecked="{Binding Speaker, Mode=TwoWay}"
+                                          AutomationProperties.Name="{ui:T 'Lautsprecher und Kopfhörer', 'Speaker and headphones'}" />
+                            </Grid>
+
+                            <Grid Margin="0,14,0,0" IsEnabled="{Binding Speaker}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="{ui:T 'Bei Stille stumm', 'Mute when silent'}" Style="{StaticResource SettingTitle}" />
+                                    <TextBlock Text="{ui:T 'Verhindert leises Fiepen im Kopfhörer, solange nichts läuft.', 'Stops a quiet whine in headphones while nothing plays.'}"
+                                               Style="{StaticResource SettingHint}" />
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                          IsChecked="{Binding MuteWhenSilent, Mode=TwoWay}"
+                                          AutomationProperties.Name="{ui:T 'Bei Stille stumm', 'Mute when silent'}" />
+                            </Grid>
+
+                            <Grid Margin="0,14,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="{ui:T 'Akku-Warnung', 'Battery warning'}" Style="{StaticResource SettingTitle}" />
+                                    <TextBlock Text="{ui:T 'Hinweis bei 20 % und 10 %.', 'Notification at 20 % and 10 %.'}"
+                                               Style="{StaticResource SettingHint}" />
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                          IsChecked="{Binding BatteryWarning, Mode=TwoWay}"
+                                          AutomationProperties.Name="{ui:T 'Akku-Warnung', 'Battery warning'}" />
+                            </Grid>
+
+                            <Grid Margin="0,14,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="{ui:T 'Hinweis beim Verbinden und Trennen', 'Notify on connect and disconnect'}" Style="{StaticResource SettingTitle}" />
+                                    <TextBlock Text="{ui:T 'Mit Akkustand beim Verbinden.', 'With the battery level when connecting.'}"
+                                               Style="{StaticResource SettingHint}" />
+                                </StackPanel>
+                                <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                          IsChecked="{Binding ConnectionHints, Mode=TwoWay}"
+                                          AutomationProperties.Name="{ui:T 'Hinweis beim Verbinden und Trennen', 'Notify on connect and disconnect'}" />
+                            </Grid>
+
+                            <TextBlock Style="{StaticResource SecondaryText}" Margin="0,14,0,5"
+                                       Text="{ui:T 'Ausschalten ohne Eingabe', 'Switch off when idle'}" />
+                            <ComboBox Style="{StaticResource ThemedComboBox}"
+                                      ItemsSource="{Binding IdleOptions}"
+                                      SelectedIndex="{Binding IdleIndex, Mode=TwoWay}"
+                                      AutomationProperties.Name="{ui:T 'Ausschalten ohne Eingabe', 'Switch off when idle'}" />
                         </StackPanel>
                     </Border>
 
                     <!-- Games that send Bluetooth haptics themselves: the bridge pauses while they run. -->
                     <Border Style="{StaticResource SettingsCard}" Margin="0,8,0,0">
                         <StackPanel>
-                            <TextBlock Text="Spiele mit eigener Bluetooth-Haptik" Style="{StaticResource SettingTitle}" FontWeight="SemiBold" />
-                            <TextBlock Text="Solange eines läuft, pausiert die Bridge und das Spiel steuert den Controller direkt."
+                            <TextBlock Text="{ui:T 'Spiele mit eigener Bluetooth-Haptik', 'Games with their own Bluetooth haptics'}" Style="{StaticResource SettingTitle}" FontWeight="SemiBold" />
+                            <TextBlock Text="{ui:T 'Solange eines läuft, pausiert die Bridge und das Spiel steuert den Controller direkt.', 'While one runs, the bridge pauses and the game drives the controller directly.'}"
                                        Style="{StaticResource SettingHint}" />
                             <ItemsControl ItemsSource="{Binding Games}" Margin="0,8,0,0">
                                 <ItemsControl.ItemTemplate>
@@ -251,13 +372,13 @@
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Text="{Binding Name}" ToolTip="{Binding Path}" Style="{StaticResource BodyText}" Margin="0,0,10,0" />
                                             <Button Grid.Column="1" Style="{StaticResource GlyphButton}" Width="28" Height="28" FontSize="11"
-                                                    Content="&#xE711;" ToolTip="Entfernen" AutomationProperties.Name="Entfernen"
+                                                    Content="&#xE711;" ToolTip="{ui:T 'Entfernen', 'Remove'}" AutomationProperties.Name="{ui:T 'Entfernen', 'Remove'}"
                                                     Command="{Binding RemoveCommand}" />
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                            <Button Content="Spiel hinzufügen …" Style="{StaticResource StandardButton}" HorizontalAlignment="Left"
+                            <Button Content="{ui:T 'Spiel hinzufügen …', 'Add game …'}" Style="{StaticResource StandardButton}" HorizontalAlignment="Left"
                                     Margin="0,4,0,0" Command="{Binding AddGameCommand}" />
                         </StackPanel>
                     </Border>
@@ -269,17 +390,50 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="Mit Windows starten" Style="{StaticResource SettingTitle}" />
+                                <TextBlock Text="{ui:T 'Mit Windows starten', 'Start with Windows'}" Style="{StaticResource SettingTitle}" />
                                 <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitch}"
                                           IsChecked="{Binding AutostartEnabled, Mode=TwoWay}"
-                                          AutomationProperties.Name="Mit Windows starten" />
+                                          AutomationProperties.Name="{ui:T 'Mit Windows starten', 'Start with Windows'}" />
                             </Grid>
 
-                            <TextBlock Style="{StaticResource SecondaryText}" Text="Darstellung" Margin="0,14,0,5" />
+                            <TextBlock Style="{StaticResource SecondaryText}" Text="{ui:T 'Position der Hinweise', 'Notification position'}" Margin="0,14,0,5" />
+                            <ComboBox Style="{StaticResource ThemedComboBox}"
+                                      ItemsSource="{Binding NotificationPositions}"
+                                      SelectedIndex="{Binding NotificationPositionIndex, Mode=TwoWay}"
+                                      AutomationProperties.Name="{ui:T 'Position der Hinweise', 'Notification position'}" />
+
+                            <TextBlock Style="{StaticResource SecondaryText}" Text="{ui:T 'Sprache', 'Language'}" Margin="0,14,0,5" />
+                            <ComboBox Style="{StaticResource ThemedComboBox}"
+                                      ItemsSource="{Binding Languages}"
+                                      SelectedIndex="{Binding LanguageIndex, Mode=TwoWay}"
+                                      AutomationProperties.Name="{ui:T 'Sprache', 'Language'}" />
+
+                            <TextBlock Style="{StaticResource SecondaryText}" Text="{ui:T 'Darstellung', 'Appearance'}" Margin="0,14,0,5" />
                             <ComboBox Style="{StaticResource ThemedComboBox}"
                                       ItemsSource="{Binding Themes}"
                                       SelectedIndex="{Binding ThemeIndex, Mode=TwoWay}"
-                                      AutomationProperties.Name="Darstellung" />
+                                      AutomationProperties.Name="{ui:T 'Darstellung', 'Appearance'}" />
+
+                            <Grid Margin="0,14,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{ui:T 'Automatisch nach Updates suchen', 'Check for updates automatically'}" Style="{StaticResource SettingTitle}" />
+                                <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitch}"
+                                          IsChecked="{Binding UpdateCheck, Mode=TwoWay}"
+                                          AutomationProperties.Name="{ui:T 'Automatisch nach Updates suchen', 'Check for updates automatically'}" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Button Style="{StaticResource StandardButton}" Padding="12,0"
+                                        Content="{ui:T 'Jetzt suchen', 'Check now'}" Command="{Binding CheckUpdateCommand}" />
+                                <TextBlock Grid.Column="1" Style="{StaticResource SettingHint}" Margin="10,0,0,0" VerticalAlignment="Center"
+                                           Text="{Binding UpdateStatus}" />
+                            </Grid>
                         </StackPanel>
                     </Border>
 
@@ -290,13 +444,13 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel>
-                                <TextBlock Text="Echte Controller-Adresse melden" Style="{StaticResource SettingTitle}" />
-                                <TextBlock Text="Nicht empfohlen: Steam trennt dann die Bluetooth-Verbindung."
+                                <TextBlock Text="{ui:T 'Echte Controller-Adresse melden', 'Report the real controller address'}" Style="{StaticResource SettingTitle}" />
+                                <TextBlock Text="{ui:T 'Nicht empfohlen: Steam trennt dann die Bluetooth-Verbindung.', 'Not recommended: Steam then drops the Bluetooth link.'}"
                                            Style="{StaticResource SettingHint}" />
                             </StackPanel>
                             <CheckBox Grid.Column="1" Style="{StaticResource ToggleSwitch}"
                                       IsChecked="{Binding RealMac, Mode=TwoWay}"
-                                      AutomationProperties.Name="Echte Controller-Adresse melden" />
+                                      AutomationProperties.Name="{ui:T 'Echte Controller-Adresse melden', 'Report the real controller address'}" />
                         </Grid>
                     </Border>
                 </StackPanel>
@@ -316,13 +470,13 @@
                     <Button Grid.Column="1"
                             Style="{StaticResource GlyphButton}"
                             Content="&#xE8A5;"
-                            ToolTip="Log anzeigen"
+                            ToolTip="{ui:T 'Log anzeigen', 'Show log'}"
                             Command="{Binding OpenLogCommand}" />
 
                     <Button Grid.Column="2"
                             Style="{StaticResource StandardButton}"
                             Margin="8,0,0,0"
-                            Content="Beenden"
+                            Content="{ui:T 'Beenden', 'Quit'}"
                             Click="OnExit" />
                 </Grid>
             </Grid>

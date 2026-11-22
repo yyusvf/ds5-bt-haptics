@@ -58,6 +58,12 @@ internal sealed class VirtualDualSense : IUsbIpDevice
         18, 1, 0x00, 0x02, 0, 0, 0, 64, 0x4C, 0x05, (byte)Info.Pid, (byte)(Info.Pid >> 8), 0x00, 0x01, 1, 2, 0, 1,
     };
 
+    /// <summary>Windows volume slider of the speaker as the controller takes it: 100 + dB, 0..100.</summary>
+    public byte SpeakerVolume => (byte)Math.Clamp(100 + _spkVolume / 256, 0, 100);
+    public bool SpeakerMuted => _spkMute != 0;
+    /// <summary>The Windows volume or mute of the speaker changed.</summary>
+    public Action? SpeakerVolumeChanged;
+
     public void PushInput(byte[] usbReport)
     {
         lock (_hidLock)
@@ -289,6 +295,7 @@ internal sealed class VirtualDualSense : IUsbIpDevice
             if (bRequest != 0x01) return (false, null); // SET_CUR only
             if (control == 1 && outData.Length >= 1) { if (spk) _spkMute = outData[0]; else _micMute = outData[0]; }
             if (control == 2 && outData.Length >= 2) { var v = BitConverter.ToInt16(outData); if (spk) _spkVolume = v; else _micVolume = v; }
+            if (spk && control is 1 or 2) SpeakerVolumeChanged?.Invoke();
             return (true, null);
         }
 
